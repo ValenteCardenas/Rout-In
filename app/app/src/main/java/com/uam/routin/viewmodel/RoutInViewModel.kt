@@ -301,6 +301,56 @@ class RoutInViewModel(application: Application) :
         }
     }
 
+    // ─── SPEC05: In-Memory Habit Creation ───────────────────────────────────────
+
+    /**
+     * Creates a new custom habit block and appends it to the in-memory list.
+     * ID generation uses sequential integer logic to prevent Compose
+     * duplicate key crashes in LazyColumn.
+     *
+     * @param name          Display name for the habit block
+     * @param time          Scheduled time in "HH:mm" format
+     * @param duration      Duration in minutes
+     */
+    fun addCustomHabit(name: String, time: String, duration: Int) {
+        val newId = (_habitBlocks.value.maxOfOrNull { it.id } ?: 0) + 1
+        val newHabit = HabitBlock(
+            id = newId,
+            name = name,
+            scheduledTime = time,
+            durationMinutes = duration,
+            status = HabitBlock.StatusConstants.PENDING,
+            isImmutable = false,
+            source = HabitBlock.Source.INTERNAL
+        )
+        mutateHabitBlocks { add(newHabit) }
+    }
+
+    // ─── SPEC06: Interactive Habit Gamification and Completion ─────────────────
+
+    /**
+     * Toggles a habit block's status between COMPLETED and PENDING.
+     * Uses immutable list mapping to guarantee Compose recomposition.
+     * Only affects the target habit; all other blocks remain unchanged.
+     *
+     * @param habitId  The unique ID of the habit block to toggle
+     */
+    fun toggleHabitCompletion(habitId: Int) {
+        val updatedList = _habitBlocks.value.map { block ->
+            if (block.id == habitId) {
+                val nextStatus = if (block.status == HabitBlock.StatusConstants.COMPLETED) {
+                    HabitBlock.StatusConstants.PENDING
+                } else {
+                    HabitBlock.StatusConstants.COMPLETED
+                }
+                block.copy(status = nextStatus)
+            } else {
+                block
+            }
+        }
+        _habitBlocks.value = updatedList
+    }
+
     // ─── Private Helpers ──────────────────────────────────────────────────────
 
     /**

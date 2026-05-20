@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Check
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,11 +51,16 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +74,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.uam.routin.data.model.HabitBlock
@@ -92,6 +100,9 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
 
     val habitBlocks by viewModel.habitBlocks
     val uiState by viewModel.uiState
+
+    // SPEC05 — Add Habit Dialog visibility state
+    var showAddDialog by remember { mutableStateOf(false) }
 
     val isVoiceActive = uiState == UiState.Listening || uiState == UiState.Loading || uiState == UiState.Speaking
 
@@ -123,23 +134,46 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
         modifier = Modifier.semantics { contentDescription = "screen_main_dashboard" },
         containerColor = RoutInColors.DeepPurpleNavy,
         floatingActionButton = {
-            // ── Microphone FAB (SPEC02) ──────────────────────────────────────────
-            FloatingActionButton(
-                onClick = { /* empty, gesture handled natively by interactionSource */ },
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .size(64.dp)
-                    .scale(fabScale)
-                    .semantics { contentDescription = "fab_microphone" },
-                shape = CircleShape,
-                containerColor = RoutInColors.VibrantGreenEmphasis,
-                contentColor = RoutInColors.DeepPurpleNavy
+            // ── FAB Slot: Column wrapper (SPEC05 §7.4) ─────────────────────────
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.End
             ) {
-                Icon(
-                    imageVector = if (isVoiceActive) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
-                    contentDescription = "Simular comando de voz",
-                    modifier = Modifier.size(28.dp)
-                )
+                // ── Add Habit FAB (SPEC05) ──────────────────────────────────────
+                FloatingActionButton(
+                    onClick = { showAddDialog = true },
+                    modifier = Modifier
+                        .size(56.dp)
+                        .semantics { contentDescription = "fab_add_habit" },
+                    shape = CircleShape,
+                    containerColor = RoutInColors.ClarityBlue,
+                    contentColor = RoutInColors.OffWhiteSerenity
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = "Agregar hábito",
+                        modifier = Modifier.size(26.dp)
+                    )
+                }
+
+                // ── Microphone FAB (SPEC02) ──────────────────────────────────────
+                FloatingActionButton(
+                    onClick = { /* empty, gesture handled natively by interactionSource */ },
+                    interactionSource = interactionSource,
+                    modifier = Modifier
+                        .size(64.dp)
+                        .scale(fabScale)
+                        .semantics { contentDescription = "fab_microphone" },
+                    shape = CircleShape,
+                    containerColor = RoutInColors.VibrantGreenEmphasis,
+                    contentColor = RoutInColors.DeepPurpleNavy
+                ) {
+                    Icon(
+                        imageVector = if (isVoiceActive) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
+                        contentDescription = "Simular comando de voz",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
     ) { innerPadding ->
@@ -179,7 +213,10 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                         animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                     )
                 ) {
-                    HabitBlockCard(block = block)
+                    HabitBlockCard(
+                        block = block,
+                        onClick = { viewModel.toggleHabitCompletion(block.id) }
+                    )
                 }
             }
 
@@ -190,6 +227,17 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                 Spacer(modifier = Modifier.height(80.dp)) // FAB clearance
             }
         }
+    }
+
+    // ── SPEC05: Add Habit Dialog ──────────────────────────────────────────────
+    if (showAddDialog) {
+        AddHabitDialog(
+            onDismiss = { showAddDialog = false },
+            onConfirm = { name, time, duration ->
+                viewModel.addCustomHabit(name, time, duration)
+                showAddDialog = false
+            }
+        )
     }
 }
 
@@ -344,7 +392,7 @@ private fun DrawScope.drawWaveLayer(
  *         card_habit_pending_{block.id}
  */
 @Composable
-private fun HabitBlockCard(block: HabitBlock) {
+private fun HabitBlockCard(block: HabitBlock, onClick: () -> Unit = {}) {
 
     val (cardBackground, textOnCard) = resolveCardColors(block)
     val cardAlpha = if (block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION) 0.5f else 1f
@@ -367,6 +415,7 @@ private fun HabitBlockCard(block: HabitBlock) {
     }
 
     Card(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .alpha(cardAlpha)
@@ -584,4 +633,125 @@ private fun DebugButton(
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
         )
     }
+}
+
+// ─── SPEC05: Add Habit Dialog ─────────────────────────────────────────────────
+
+/**
+ * Material Design 3 AlertDialog for manual in-memory habit creation.
+ * Gathers Habit Name, Scheduled Time (HH:mm), and Duration (minutes)
+ * from the user. All state mutation is delegated to the ViewModel via [onConfirm].
+ *
+ * testId: dialog_add_habit
+ */
+@Composable
+private fun AddHabitDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, time: String, duration: Int) -> Unit
+) {
+    var habitName by remember { mutableStateOf("") }
+    var scheduledTime by remember { mutableStateOf("") }
+    var durationText by remember { mutableStateOf("") }
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = RoutInColors.OffWhiteSerenity,
+        unfocusedTextColor = RoutInColors.SoftMutedLavender,
+        cursorColor = RoutInColors.VibrantGreenEmphasis,
+        focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
+        unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
+        focusedLabelColor = RoutInColors.VibrantGreenEmphasis,
+        unfocusedLabelColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.semantics { contentDescription = "dialog_add_habit" },
+        containerColor = RoutInColors.DarkSurface,
+        titleContentColor = RoutInColors.OffWhiteSerenity,
+        textContentColor = RoutInColors.SoftMutedLavender,
+        title = {
+            Text(
+                text = "Nuevo Hábito",
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Agrega una nueva rutina a tu agenda",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+                    )
+                )
+                OutlinedTextField(
+                    value = habitName,
+                    onValueChange = { habitName = it },
+                    label = { Text("Nombre del hábito") },
+                    placeholder = { Text("Ej: Repasar Sistemas Operativos") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = textFieldColors
+                )
+                OutlinedTextField(
+                    value = scheduledTime,
+                    onValueChange = { input ->
+                        // Allow only valid HH:mm characters
+                        val filtered = input.filter { it.isDigit() || it == ':' }
+                        if (filtered.length <= 5) scheduledTime = filtered
+                    },
+                    label = { Text("Hora (HH:mm)") },
+                    placeholder = { Text("Ej: 20:00") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = textFieldColors
+                )
+                OutlinedTextField(
+                    value = durationText,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() }
+                        if (filtered.length <= 3) durationText = filtered
+                    },
+                    label = { Text("Duración (minutos)") },
+                    placeholder = { Text("Ej: 60") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = KeyboardType.Number
+                    ),
+                    colors = textFieldColors
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val duration = durationText.toIntOrNull() ?: 30
+                    val time = if (scheduledTime.matches(Regex("\\d{2}:\\d{2}"))) {
+                        scheduledTime
+                    } else {
+                        "12:00" // Fallback default
+                    }
+                    if (habitName.isNotBlank()) {
+                        onConfirm(habitName.trim(), time, duration)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RoutInColors.VibrantGreenEmphasis,
+                    contentColor = RoutInColors.DeepPurpleNavy
+                ),
+                shape = RoundedCornerShape(12.dp),
+                enabled = habitName.isNotBlank()
+            ) {
+                Text("Confirmar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    "Cancelar",
+                    color = RoutInColors.SoftMutedLavender
+                )
+            }
+        }
+    )
 }
