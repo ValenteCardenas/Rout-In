@@ -105,7 +105,7 @@ Reference: `Architectural_Context.md §3.4 — Flow D`.
 
 - **State Management**: Create a boolean `MutableState` (e.g., `showAddDialog`) in `MainDashboardScreen` to track visibility.
 - **Component**: Build a Material Design 3 `AlertDialog`.
-- **Inputs**: Use `OutlinedTextField` components to capture "Habit Name", "Scheduled Time" (HH:mm format), and "Duration" (numeric).
+- **Inputs**: Use `OutlinedTextField` components to capture "Habit Name" and "Duration" (numeric). For "Scheduled Time" (HH:mm format), use a read-only `OutlinedTextField` that opens a native `android.app.TimePickerDialog` on tap.
 - **Actions**:
   - **Confirm**: Parse inputs, invoke `viewModel.addCustomHabit(name, time, duration)`, and set `showAddDialog = false`.
   - **Dismiss**: Set `showAddDialog = false` without calling the view model.

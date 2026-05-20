@@ -650,8 +650,19 @@ private fun AddHabitDialog(
     onConfirm: (name: String, time: String, duration: Int) -> Unit
 ) {
     var habitName by remember { mutableStateOf("") }
-    var scheduledTime by remember { mutableStateOf("") }
+    var scheduledTime by remember { mutableStateOf("12:00") }
     var durationText by remember { mutableStateOf("") }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val timePickerDialog = remember {
+        android.app.TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                scheduledTime = String.format(java.util.Locale.getDefault(), "%02d:%02d", hourOfDay, minute)
+            },
+            12, 0, true
+        )
+    }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = RoutInColors.OffWhiteSerenity,
@@ -694,16 +705,31 @@ private fun AddHabitDialog(
                 )
                 OutlinedTextField(
                     value = scheduledTime,
-                    onValueChange = { input ->
-                        // Allow only valid HH:mm characters
-                        val filtered = input.filter { it.isDigit() || it == ':' }
-                        if (filtered.length <= 5) scheduledTime = filtered
-                    },
+                    onValueChange = { },
                     label = { Text("Hora (HH:mm)") },
-                    placeholder = { Text("Ej: 20:00") },
                     singleLine = true,
+                    readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = textFieldColors
+                    colors = textFieldColors,
+                    trailingIcon = {
+                        androidx.compose.material3.IconButton(onClick = { timePickerDialog.show() }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Schedule,
+                                contentDescription = "Seleccionar Hora",
+                                tint = RoutInColors.SoftMutedLavender
+                            )
+                        }
+                    },
+                    interactionSource = remember { MutableInteractionSource() }
+                        .also { interactionSource ->
+                            LaunchedEffect(interactionSource) {
+                                interactionSource.interactions.collect {
+                                    if (it is androidx.compose.foundation.interaction.PressInteraction.Release) {
+                                        timePickerDialog.show()
+                                    }
+                                }
+                            }
+                        }
                 )
                 OutlinedTextField(
                     value = durationText,
