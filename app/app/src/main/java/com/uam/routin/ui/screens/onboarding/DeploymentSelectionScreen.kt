@@ -52,7 +52,7 @@ fun DeploymentSelectionScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RoutInColors.DeepPurpleNavy)
+            .background(MaterialTheme.colorScheme.background)
             .semantics { contentDescription = "screen_deployment_selection" }
     ) {
         Column(
@@ -66,7 +66,7 @@ fun DeploymentSelectionScreen(
             Text(
                 text = "Elige tu entorno",
                 style = MaterialTheme.typography.headlineLarge.copy(
-                    color = RoutInColors.OffWhiteSerenity
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             )
 
@@ -75,7 +75,7 @@ fun DeploymentSelectionScreen(
             Text(
                 text = "¿Cómo conectará Rout-In con tu ecosistema?",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = RoutInColors.SoftMutedLavender,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 ),
                 textAlign = TextAlign.Center
@@ -113,7 +113,7 @@ fun DeploymentSelectionScreen(
 /**
  * Reusable Material 3 deployment mode card.
  * When a pastel [accentColor] is used as the icon background, typography
- * automatically swaps to [RoutInColors.DeepPurpleNavy] for accessibility contrast.
+ * automatically swaps to [MaterialTheme.colorScheme.background] for accessibility contrast.
  */
 @Composable
 private fun DeploymentSelectionCard(
@@ -132,7 +132,7 @@ private fun DeploymentSelectionCard(
             .clickable(onClick = onClick)
             .semantics { contentDescription = testId },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = RoutInColors.DarkSurface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Row(
@@ -149,7 +149,7 @@ private fun DeploymentSelectionCard(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = RoutInColors.DeepPurpleNavy, // High-contrast on pastel bg
+                    tint = MaterialTheme.colorScheme.background, // High-contrast on pastel bg
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -160,14 +160,14 @@ private fun DeploymentSelectionCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.headlineMedium.copy(
-                        color = RoutInColors.OffWhiteSerenity,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 18.sp
                     )
                 )
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.labelLarge.copy(
-                        color = RoutInColors.VibrantGreenEmphasis,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 12.sp
                     )
                 )
@@ -175,7 +175,7 @@ private fun DeploymentSelectionCard(
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = RoutInColors.SoftMutedLavender,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp
                     ),
                     lineHeight = 19.sp

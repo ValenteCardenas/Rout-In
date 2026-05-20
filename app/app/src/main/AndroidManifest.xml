@@ -8,6 +8,10 @@
     <!-- Required to trigger haptic vibration for the anti-blindness intervention (SPEC03) -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Required for triggering precise native alarms (SPEC11) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -40,6 +44,7 @@
             <intent-filter>
                 <action android:name="com.uam.routin.ACTION_MOVE_HABIT_630" />
                 <action android:name="com.uam.routin.ACTION_RELOCATE_HABIT_730" />
+                <action android:name="com.uam.routin.ACTION_ROUTINE_ALARM" />
             </intent-filter>
         </receiver>
 

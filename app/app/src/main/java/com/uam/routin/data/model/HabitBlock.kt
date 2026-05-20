@@ -39,7 +39,7 @@ object MockDataSeed {
         HabitBlock(
             id = 101,
             name = "Clase de Arq. de Computadoras",
-            scheduledTime = "14:00",
+            scheduledTime = "12:00",
             durationMinutes = 120,
             status = HabitBlock.StatusConstants.COMPLETED,
             isImmutable = true,
@@ -76,7 +76,7 @@ object MockDataSeed {
             id = 108,
             name = "Reading Block",
             scheduledTime = "17:00",
-            durationMinutes = 60,
+            durationMinutes = 20,
             status = HabitBlock.StatusConstants.PENDING,
             isImmutable = false,
             source = HabitBlock.Source.INTERNAL

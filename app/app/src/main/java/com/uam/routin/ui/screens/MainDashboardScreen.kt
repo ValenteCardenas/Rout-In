@@ -153,7 +153,7 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
 
     Scaffold(
         modifier = Modifier.semantics { contentDescription = "screen_main_dashboard" },
-        containerColor = RoutInColors.DeepPurpleNavy,
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             // ── FAB Slot: Column wrapper (SPEC05 §7.4) ─────────────────────────
             Column(
@@ -168,7 +168,7 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                         .semantics { contentDescription = "fab_add_habit" },
                     shape = CircleShape,
                     containerColor = RoutInColors.ClarityBlue,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    contentColor = MaterialTheme.colorScheme.background
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Add,
@@ -185,8 +185,8 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                         .scale(fabScale)
                         .semantics { contentDescription = "fab_microphone" },
                     shape = CircleShape,
-                    containerColor = RoutInColors.VibrantGreenEmphasis,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.background
                 ) {
                     Icon(
                         imageVector = if (isVoiceActive) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
@@ -350,9 +350,9 @@ private fun AICopilotCard(viewModel: RoutInViewModel, uiState: UiState) {
     }
     val subtitleColor = when (uiState) {
         is UiState.Listening, is UiState.Loading, is UiState.Speaking ->
-            RoutInColors.VibrantGreenEmphasis
-        is UiState.Success -> RoutInColors.VibrantGreenEmphasis
-        else -> RoutInColors.SoftMutedLavender
+            MaterialTheme.colorScheme.primary
+        is UiState.Success -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Card(
@@ -360,15 +360,15 @@ private fun AICopilotCard(viewModel: RoutInViewModel, uiState: UiState) {
             .fillMaxWidth()
             .semantics { contentDescription = "card_ai_copilot" },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = RoutInColors.DarkSurface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             // ── Greeting Row ──────────────────────────────────────────────
             Text(
-                text = "Buenos días, Gabriel 👋",
+                text = "${viewModel.getDynamicGreeting()}, Gabriel 👋",
                 style = MaterialTheme.typography.headlineSmall.copy(
-                    color = RoutInColors.OffWhiteSerenity
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             )
             Spacer(modifier = Modifier.height(2.dp))
@@ -389,8 +389,8 @@ private fun AICopilotCard(viewModel: RoutInViewModel, uiState: UiState) {
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp)),
-                color = RoutInColors.VibrantGreenEmphasis,
-                trackColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.15f)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
             )
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -403,7 +403,7 @@ private fun AICopilotCard(viewModel: RoutInViewModel, uiState: UiState) {
                 Text(
                     text = completionLabel,
                     style = MaterialTheme.typography.labelLarge.copy(
-                        color = RoutInColors.VibrantGreenEmphasis,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 13.sp
                     )
                 )
@@ -430,7 +430,7 @@ private fun AICopilotCard(viewModel: RoutInViewModel, uiState: UiState) {
                 Text(
                     text = coachingMessage,
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = RoutInColors.OffWhiteSerenity.copy(alpha = 0.85f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                         fontSize = 13.sp,
                         lineHeight = 19.sp
                     )
@@ -464,8 +464,8 @@ private fun WaveAnimationPanel(uiState: UiState) {
         )
     }
 
-    val waveColor1 = RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.85f)
-    val waveColor2 = RoutInColors.SoftMutedLavender.copy(alpha = 0.45f)
+    val waveColor1 = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+    val waveColor2 = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
     val waveColor3 = RoutInColors.ClarityBlue.copy(alpha = 0.30f)
 
     Box(
@@ -506,7 +506,7 @@ private fun WaveAnimationPanel(uiState: UiState) {
                 else -> "\"Tengo una junta con mi asesor de Proyecto de Investigación a las 5…\""
             },
             style = MaterialTheme.typography.labelSmall.copy(
-                color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 fontSize = 10.sp
             ),
             modifier = Modifier
@@ -678,31 +678,35 @@ private fun StatusBadge(block: HabitBlock, textColor: Color) {
 /**
  * Returns (cardBackground, onCardTextColor) based on status and source.
  * When a pastel color is used as background, text automatically swaps to
- * [RoutInColors.DeepPurpleNavy] per the design system contrast rule.
+ * [MaterialTheme.colorScheme.background] per the design system contrast rule.
  */
+@Composable
 private fun resolveCardColors(block: HabitBlock): Pair<Color, Color> {
     return when {
         block.source == HabitBlock.Source.EXTERNAL && block.isImmutable ->
-            RoutInColors.ClarityBlue to RoutInColors.DeepPurpleNavy
+            RoutInColors.ClarityBlue to MaterialTheme.colorScheme.background
         block.status == HabitBlock.StatusConstants.COMPLETED ->
-            RoutInColors.WellbeingMint to RoutInColors.DeepPurpleNavy
+            RoutInColors.WellbeingMint to MaterialTheme.colorScheme.background
         block.status == HabitBlock.StatusConstants.FRICTION ->
-            RoutInColors.OptimismYellow to RoutInColors.DeepPurpleNavy
+            RoutInColors.OptimismYellow to MaterialTheme.colorScheme.background
         block.status == HabitBlock.StatusConstants.REALLOCATED ->
-            RoutInColors.WellbeingMint to RoutInColors.DeepPurpleNavy
+            RoutInColors.WellbeingMint to MaterialTheme.colorScheme.background
         block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION ->
-            RoutInColors.DarkSurface to RoutInColors.SoftMutedLavender
-        else -> RoutInColors.DarkSurface to RoutInColors.OffWhiteSerenity
+            MaterialTheme.colorScheme.surface to MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.surface to MaterialTheme.colorScheme.onSurface
     }
 }
 
-private fun resolveStatusAccent(block: HabitBlock): Color = when (block.status) {
-    HabitBlock.StatusConstants.COMPLETED -> RoutInColors.VibrantGreenEmphasis
-    HabitBlock.StatusConstants.FRICTION -> Color(0xFFFFB347)
-    HabitBlock.StatusConstants.REALLOCATED -> RoutInColors.VibrantGreenEmphasis
-    HabitBlock.StatusConstants.PENDING_REALLOCATION -> Color(0xFFB0AACC)
-    else -> if (block.source == HabitBlock.Source.EXTERNAL)
-        RoutInColors.ClarityBlue else RoutInColors.SoftMutedLavender
+@Composable
+private fun resolveStatusAccent(block: HabitBlock): Color {
+    return when (block.status) {
+        HabitBlock.StatusConstants.COMPLETED -> MaterialTheme.colorScheme.primary
+        HabitBlock.StatusConstants.FRICTION -> Color(0xFFFFB347)
+        HabitBlock.StatusConstants.REALLOCATED -> MaterialTheme.colorScheme.primary
+        HabitBlock.StatusConstants.PENDING_REALLOCATION -> Color(0xFFB0AACC)
+        else -> if (block.source == HabitBlock.Source.EXTERNAL)
+            RoutInColors.ClarityBlue else MaterialTheme.colorScheme.onSurfaceVariant
+    }
 }
 
 @Composable
@@ -739,7 +743,7 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
             .fillMaxWidth()
             .semantics { contentDescription = "section_debug" },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = RoutInColors.DarkSurface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
@@ -754,14 +758,14 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
                 Icon(
                     imageVector = Icons.Rounded.BugReport,
                     contentDescription = null,
-                    tint = RoutInColors.SoftMutedLavender,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Debug Dashboard · Simulaciones",
                     style = MaterialTheme.typography.labelLarge.copy(
-                        color = RoutInColors.SoftMutedLavender,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     ),
                     modifier = Modifier.weight(1f)
@@ -769,7 +773,7 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
                 Icon(
                     imageVector = Icons.Rounded.ExpandMore,
                     contentDescription = if (isExpanded) "Colapsar" else "Expandir",
-                    tint = RoutInColors.SoftMutedLavender,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .size(22.dp)
                         .rotate(chevronRotation)
@@ -827,7 +831,7 @@ private fun DebugButton(
         shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
-            contentColor = RoutInColors.DeepPurpleNavy
+            contentColor = MaterialTheme.colorScheme.background
         )
     ) {
         Text(
@@ -873,21 +877,21 @@ private fun EditHabitDialog(
     }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = RoutInColors.OffWhiteSerenity,
-        unfocusedTextColor = RoutInColors.SoftMutedLavender,
-        cursorColor = RoutInColors.VibrantGreenEmphasis,
-        focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
-        unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
-        focusedLabelColor = RoutInColors.VibrantGreenEmphasis,
-        unfocusedLabelColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        cursorColor = MaterialTheme.colorScheme.primary,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.semantics { contentDescription = "dialog_edit_habit" },
-        containerColor = RoutInColors.DarkSurface,
-        titleContentColor = RoutInColors.OffWhiteSerenity,
-        textContentColor = RoutInColors.SoftMutedLavender,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         title = {
             Text(
                 text = "Editar Hábito",
@@ -917,7 +921,7 @@ private fun EditHabitDialog(
                             Icon(
                                 imageVector = Icons.Rounded.Schedule,
                                 contentDescription = "Seleccionar Hora",
-                                tint = RoutInColors.SoftMutedLavender
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     },
@@ -954,13 +958,13 @@ private fun EditHabitDialog(
                         Text(
                             text = "Fijo",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = RoutInColors.OffWhiteSerenity
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         Text(
                             text = "Ancla este bloque al horario",
                             style = MaterialTheme.typography.labelSmall.copy(
-                                color = RoutInColors.SoftMutedLavender.copy(alpha = 0.6f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                 fontSize = 11.sp
                             )
                         )
@@ -970,10 +974,10 @@ private fun EditHabitDialog(
                         onCheckedChange = { isImmutable = it },
                         modifier = Modifier.semantics { contentDescription = "toggle_immutable" },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = RoutInColors.DeepPurpleNavy,
-                            checkedTrackColor = RoutInColors.VibrantGreenEmphasis,
-                            uncheckedThumbColor = RoutInColors.SoftMutedLavender,
-                            uncheckedTrackColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.2f)
+                            checkedThumbColor = MaterialTheme.colorScheme.background,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                         )
                     )
                 }
@@ -993,8 +997,8 @@ private fun EditHabitDialog(
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RoutInColors.VibrantGreenEmphasis,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.background
                 ),
                 shape = RoundedCornerShape(12.dp),
                 enabled = habitName.isNotBlank()
@@ -1021,7 +1025,7 @@ private fun EditHabitDialog(
                 TextButton(onClick = onDismiss) {
                     Text(
                         "Cancelar",
-                        color = RoutInColors.SoftMutedLavender
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1059,21 +1063,21 @@ private fun AddHabitDialog(
     }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = RoutInColors.OffWhiteSerenity,
-        unfocusedTextColor = RoutInColors.SoftMutedLavender,
-        cursorColor = RoutInColors.VibrantGreenEmphasis,
-        focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
-        unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
-        focusedLabelColor = RoutInColors.VibrantGreenEmphasis,
-        unfocusedLabelColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+        unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        cursorColor = MaterialTheme.colorScheme.primary,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.semantics { contentDescription = "dialog_add_habit" },
-        containerColor = RoutInColors.DarkSurface,
-        titleContentColor = RoutInColors.OffWhiteSerenity,
-        textContentColor = RoutInColors.SoftMutedLavender,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         title = {
             Text(
                 text = "Nuevo Hábito",
@@ -1085,7 +1089,7 @@ private fun AddHabitDialog(
                 Text(
                     text = "Agrega una nueva rutina a tu agenda",
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 )
                 OutlinedTextField(
@@ -1110,7 +1114,7 @@ private fun AddHabitDialog(
                             Icon(
                                 imageVector = Icons.Rounded.Schedule,
                                 contentDescription = "Seleccionar Hora",
-                                tint = RoutInColors.SoftMutedLavender
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     },
@@ -1156,8 +1160,8 @@ private fun AddHabitDialog(
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RoutInColors.VibrantGreenEmphasis,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.background
                 ),
                 shape = RoundedCornerShape(12.dp),
                 enabled = habitName.isNotBlank()
@@ -1169,7 +1173,7 @@ private fun AddHabitDialog(
             TextButton(onClick = onDismiss) {
                 Text(
                     "Cancelar",
-                    color = RoutInColors.SoftMutedLavender
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -1204,7 +1208,7 @@ private fun ConversationalBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = RoutInColors.DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
             Box(
@@ -1212,7 +1216,7 @@ private fun ConversationalBottomSheet(
                     .padding(vertical = 12.dp)
                     .size(width = 40.dp, height = 4.dp)
                     .background(
-                        RoutInColors.SoftMutedLavender.copy(alpha = 0.3f),
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                         RoundedCornerShape(2.dp)
                     )
             )
@@ -1230,14 +1234,14 @@ private fun ConversationalBottomSheet(
                 Icon(
                     imageVector = Icons.Rounded.Mic,
                     contentDescription = null,
-                    tint = RoutInColors.VibrantGreenEmphasis,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Hablemos con Rout-In",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = RoutInColors.OffWhiteSerenity
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 )
             }
@@ -1245,7 +1249,7 @@ private fun ConversationalBottomSheet(
             Text(
                 text = "Escribe o dicta un comando",
                 style = MaterialTheme.typography.bodySmall.copy(
-                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             )
 
@@ -1261,7 +1265,7 @@ private fun ConversationalBottomSheet(
                 placeholder = {
                     Text(
                         "mueve mi gimnasio a las 8...",
-                        color = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     )
                 },
                 trailingIcon = {
@@ -1278,18 +1282,18 @@ private fun ConversationalBottomSheet(
                             imageVector = Icons.AutoMirrored.Rounded.Send,
                             contentDescription = "Enviar comando",
                             tint = if (inputText.isNotBlank() && !isProcessing)
-                                RoutInColors.VibrantGreenEmphasis
-                            else RoutInColors.SoftMutedLavender.copy(alpha = 0.3f)
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                         )
                     }
                 },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = RoutInColors.OffWhiteSerenity,
-                    unfocusedTextColor = RoutInColors.SoftMutedLavender,
-                    cursorColor = RoutInColors.VibrantGreenEmphasis,
-                    focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
-                    unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.3f)
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 ),
                 shape = RoundedCornerShape(16.dp),
                 enabled = !isProcessing
@@ -1301,7 +1305,7 @@ private fun ConversationalBottomSheet(
             Text(
                 text = "Sugerencias rápidas:",
                 style = MaterialTheme.typography.labelMedium.copy(
-                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -1356,9 +1360,9 @@ private fun ConversationalBottomSheet(
                     .clip(RoundedCornerShape(20.dp))
                     .background(
                         when {
-                            isProcessing -> RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.35f)
-                            isVoiceButtonPressed -> RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.75f)
-                            else -> RoutInColors.VibrantGreenEmphasis
+                            isProcessing -> MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            isVoiceButtonPressed -> MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+                            else -> MaterialTheme.colorScheme.primary
                         }
                     )
                     .semantics { contentDescription = "btn_voice_simulate" }
@@ -1384,7 +1388,7 @@ private fun ConversationalBottomSheet(
                     Icon(
                         imageVector = if (isVoiceButtonPressed) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
                         contentDescription = null,
-                        tint = RoutInColors.DeepPurpleNavy,
+                        tint = MaterialTheme.colorScheme.background,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
@@ -1392,7 +1396,7 @@ private fun ConversationalBottomSheet(
                         text = if (isVoiceButtonPressed) "🔊 Escuchando..."
                                else "¿En qué te puedo ayudar?",
                         style = MaterialTheme.typography.labelLarge.copy(
-                            color = RoutInColors.DeepPurpleNavy,
+                            color = MaterialTheme.colorScheme.background,
                             fontSize = 14.sp
                         )
                     )
@@ -1413,14 +1417,14 @@ private fun ConversationalBottomSheet(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = RoutInColors.VibrantGreenEmphasis,
-                        trackColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.1f)
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = if (uiState == UiState.Speaking) "🔊 Respondiendo..." else "⏳ Procesando...",
                         style = MaterialTheme.typography.labelSmall.copy(
-                            color = RoutInColors.VibrantGreenEmphasis,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 11.sp
                         )
                     )
@@ -1444,7 +1448,7 @@ private fun ConversationalBottomSheet(
                             .padding(top = 12.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = RoutInColors.DeepPurpleNavy
+                            containerColor = MaterialTheme.colorScheme.background
                         )
                     ) {
                         Row(
@@ -1459,7 +1463,7 @@ private fun ConversationalBottomSheet(
                             Text(
                                 text = finalResponseText,
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = RoutInColors.OffWhiteSerenity,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 13.sp,
                                     lineHeight = 19.sp
                                 )
@@ -1488,7 +1492,7 @@ private fun QuickSuggestionChip(
             .height(40.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.1f)
+            containerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
         )
     ) {
         Box(
@@ -1500,7 +1504,7 @@ private fun QuickSuggestionChip(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium.copy(
-                    color = RoutInColors.OffWhiteSerenity,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 12.sp
                 ),
                 maxLines = 1

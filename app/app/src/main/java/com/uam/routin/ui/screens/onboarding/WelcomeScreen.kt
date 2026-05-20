@@ -62,7 +62,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RoutInColors.DeepPurpleNavy)
+            .background(MaterialTheme.colorScheme.background)
             .semantics { contentDescription = "screen_welcome" }
     ) {
         // Subtle radial gradient backdrop for depth
@@ -72,7 +72,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
                 .background(
                     Brush.radialGradient(
                         colors = listOf(
-                            RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.07f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
                             Color.Transparent
                         ),
                         radius = 900f
@@ -96,8 +96,8 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
                     .background(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.4f),
-                                RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.0f)
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.0f)
                             )
                         ),
                         shape = CircleShape
@@ -107,7 +107,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(60.dp)
-                        .background(RoutInColors.VibrantGreenEmphasis, CircleShape)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
                 )
             }
 
@@ -117,7 +117,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
             Text(
                 text = "Rout-In",
                 style = MaterialTheme.typography.headlineLarge.copy(
-                    color = RoutInColors.OffWhiteSerenity,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 42.sp,
                     letterSpacing = (-1).sp
                 )
@@ -128,7 +128,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
             Text(
                 text = "Tu copiloto de hábitos inteligente",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = RoutInColors.SoftMutedLavender
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 textAlign = TextAlign.Center
             )
@@ -138,7 +138,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
             Text(
                 text = "Organiza tu día con voz. Sin formularios.\nSin fricción.",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     fontSize = 14.sp
                 ),
                 textAlign = TextAlign.Center,
@@ -156,8 +156,8 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
                     .semantics { contentDescription = "btn_authenticate" },
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RoutInColors.VibrantGreenEmphasis,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
                 Text(
@@ -171,7 +171,7 @@ fun WelcomeScreen(onAuthenticate: () -> Unit) {
             Text(
                 text = "MVP · SIE 2026 · UAM Iztapalapa",
                 style = MaterialTheme.typography.labelLarge.copy(
-                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     fontSize = 11.sp
                 )
             )

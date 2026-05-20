@@ -22,7 +22,10 @@ class NotificationActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_MOVE_HABIT_630 = NotificationConfig.ACTION_MOVE_HABIT_630
         const val ACTION_RELOCATE_HABIT_730 = NotificationConfig.ACTION_RELOCATE_730
+        const val ACTION_ROUTINE_ALARM = NotificationConfig.ACTION_ROUTINE_ALARM
         const val EXTRA_NOTIFICATION_ID = NotificationConfig.EXTRA_NOTIFICATION_ID
+        const val EXTRA_HABIT_ID = NotificationConfig.EXTRA_HABIT_ID
+        const val EXTRA_HABIT_NAME = NotificationConfig.EXTRA_HABIT_NAME
 
         /**
          * Callback hooks registered by the ViewModel.
@@ -38,7 +41,17 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val notifId = intent?.getIntExtra(EXTRA_NOTIFICATION_ID, NotificationHelper.NOTIF_ID_FRICTION)
             ?: NotificationHelper.NOTIF_ID_FRICTION
 
-        // Dismiss the originating notification tray entry
+        // Handle Alarms (SPEC11)
+        if (intent?.action == ACTION_ROUTINE_ALARM) {
+            val habitId = intent.getIntExtra(EXTRA_HABIT_ID, -1)
+            val habitName = intent.getStringExtra(EXTRA_HABIT_NAME) ?: "Rutina"
+            if (habitId != -1) {
+                NotificationHelper.dispatchRoutineAlarmNotification(ctx, habitName, habitId)
+            }
+            return
+        }
+
+        // Dismiss the originating notification tray entry for interactive buttons
         val manager = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.cancel(notifId)
 

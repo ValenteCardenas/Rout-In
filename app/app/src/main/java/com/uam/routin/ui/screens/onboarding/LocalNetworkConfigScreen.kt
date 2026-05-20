@@ -49,7 +49,7 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RoutInColors.DeepPurpleNavy)
+            .background(MaterialTheme.colorScheme.background)
             .semantics { contentDescription = "screen_local_net_config" }
     ) {
         Column(
@@ -63,7 +63,7 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
             Text(
                 text = "Servidor MCP Local",
                 style = MaterialTheme.typography.headlineLarge.copy(
-                    color = RoutInColors.OffWhiteSerenity
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             )
 
@@ -72,7 +72,7 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
             Text(
                 text = "Ingresa la URI de tu servidor MCP en la red Wi-Fi local.\nEsto conecta Rout-In con tu ecosistema personal.",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = RoutInColors.SoftMutedLavender,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 ),
                 textAlign = TextAlign.Center,
@@ -87,13 +87,13 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
                 label = {
                     Text(
                         "URI del Servidor MCP",
-                        color = RoutInColors.SoftMutedLavender
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
                 placeholder = {
                     Text(
                         "ws://192.168.x.x:8080/mcp",
-                        color = RoutInColors.SoftMutedLavender.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -101,13 +101,13 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
-                    unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
-                    focusedTextColor = RoutInColors.OffWhiteSerenity,
-                    unfocusedTextColor = RoutInColors.OffWhiteSerenity,
-                    cursorColor = RoutInColors.VibrantGreenEmphasis,
-                    focusedLabelColor = RoutInColors.VibrantGreenEmphasis,
-                    unfocusedLabelColor = RoutInColors.SoftMutedLavender
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
 
@@ -116,7 +116,7 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
             Text(
                 text = "Ejemplo: ws://192.168.1.100:8080/mcp",
                 style = MaterialTheme.typography.labelLarge.copy(
-                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     fontSize = 12.sp
                 )
             )
@@ -133,8 +133,8 @@ fun LocalNetworkConfigScreen(onSaveUri: (String) -> Unit) {
                     .height(56.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RoutInColors.VibrantGreenEmphasis,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.background
                 )
             ) {
                 Text(

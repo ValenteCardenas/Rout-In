@@ -4,6 +4,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import com.uam.routin.data.model.NotificationConfig
 
 /**
@@ -34,6 +36,27 @@ object NotificationHelper {
             val manager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
+        }
+    }
+
+    /** SPEC11: Dispatches the real-time alarm notification for a scheduled habit */
+    fun dispatchRoutineAlarmNotification(context: Context, habitName: String, habitId: Int) {
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("¡Es hora de tu rutina!")
+            .setContentText(habitName)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setVibrate(NotificationConfig.HAPTIC_PATTERN)
+
+        try {
+            with(NotificationManagerCompat.from(context)) {
+                notify(habitId, builder.build())
+            }
+        } catch (e: SecurityException) {
+            // Missing POST_NOTIFICATIONS permission on Android 13+
+            e.printStackTrace()
         }
     }
 }

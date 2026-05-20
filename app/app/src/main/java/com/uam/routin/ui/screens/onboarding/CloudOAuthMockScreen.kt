@@ -57,7 +57,7 @@ fun CloudOAuthMockScreen(onContinue: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RoutInColors.DeepPurpleNavy)
+            .background(MaterialTheme.colorScheme.background)
             .semantics { contentDescription = "screen_cloud_oauth" }
     ) {
         Column(
@@ -71,7 +71,7 @@ fun CloudOAuthMockScreen(onContinue: () -> Unit) {
             Text(
                 text = "Conecta tus cuentas",
                 style = MaterialTheme.typography.headlineLarge.copy(
-                    color = RoutInColors.OffWhiteSerenity
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             )
 
@@ -80,7 +80,7 @@ fun CloudOAuthMockScreen(onContinue: () -> Unit) {
             Text(
                 text = "Selecciona los calendarios que Rout-In puede leer para proteger tus compromisos automáticamente.",
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = RoutInColors.SoftMutedLavender,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 14.sp
                 ),
                 textAlign = TextAlign.Center,
@@ -115,7 +115,7 @@ fun CloudOAuthMockScreen(onContinue: () -> Unit) {
             Text(
                 text = "Simulación MVP — No se realizan conexiones reales.",
                 style = MaterialTheme.typography.labelLarge.copy(
-                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     fontSize = 11.sp
                 )
             )
@@ -129,8 +129,8 @@ fun CloudOAuthMockScreen(onContinue: () -> Unit) {
                     .height(56.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = RoutInColors.VibrantGreenEmphasis,
-                    contentColor = RoutInColors.DeepPurpleNavy
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.background
                 )
             ) {
                 Text(
@@ -154,7 +154,7 @@ private fun OAuthProviderRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = RoutInColors.DarkSurface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -170,7 +170,7 @@ private fun OAuthProviderRow(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = RoutInColors.DeepPurpleNavy,
+                    tint = MaterialTheme.colorScheme.background,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -183,13 +183,13 @@ private fun OAuthProviderRow(
                 Text(
                     text = providerName,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        color = RoutInColors.OffWhiteSerenity
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 )
                 Text(
                     text = providerDetail,
                     style = MaterialTheme.typography.labelLarge.copy(
-                        color = RoutInColors.SoftMutedLavender,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 )
@@ -199,9 +199,9 @@ private fun OAuthProviderRow(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 colors = CheckboxDefaults.colors(
-                    checkedColor = RoutInColors.VibrantGreenEmphasis,
-                    uncheckedColor = RoutInColors.SoftMutedLavender,
-                    checkmarkColor = RoutInColors.DeepPurpleNavy
+                    checkedColor = MaterialTheme.colorScheme.primary,
+                    uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    checkmarkColor = MaterialTheme.colorScheme.background
                 )
             )
         }

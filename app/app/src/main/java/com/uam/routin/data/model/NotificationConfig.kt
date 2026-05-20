@@ -9,6 +9,7 @@ object NotificationConfig {
     // Notification IDs
     const val NOTIFICATION_ID_FRICTION  = 1001   // SPEC03: Proactive suggestion
     const val NOTIFICATION_ID_MCP       = 1002   // SPEC04: External calendar collision
+    const val NOTIFICATION_ID_ALARM     = 1003   // SPEC11: Real-time alarm
 
     // Haptic pattern: { Delay, ON, OFF, ON, OFF, ON } in milliseconds
     val HAPTIC_PATTERN = longArrayOf(0, 250, 200, 250, 150, 400)
@@ -17,8 +18,10 @@ object NotificationConfig {
     // BroadcastReceiver action strings
     const val ACTION_MOVE_HABIT_630  = "com.uam.routin.ACTION_MOVE_HABIT_630"   // SPEC03
     const val ACTION_RELOCATE_730   = "com.uam.routin.ACTION_RELOCATE_HABIT_730"      // SPEC04
+    const val ACTION_ROUTINE_ALARM  = "com.uam.routin.ACTION_ROUTINE_ALARM"     // SPEC11
 
     // Intent extras
     const val EXTRA_NOTIFICATION_ID = "EXTRA_NOTIFICATION_ID"
     const val EXTRA_HABIT_ID        = "EXTRA_HABIT_ID"
+    const val EXTRA_HABIT_NAME      = "EXTRA_HABIT_NAME"
 }

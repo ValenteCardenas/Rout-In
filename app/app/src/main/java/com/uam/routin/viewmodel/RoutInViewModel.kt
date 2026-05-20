@@ -1,9 +1,11 @@
 package com.uam.routin.viewmodel
 
+import android.app.AlarmManager
 import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -15,6 +17,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.uam.routin.data.model.DeploymentMode
 import com.uam.routin.data.model.ExternalEvent
 import com.uam.routin.data.model.HabitBlock
@@ -27,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 import java.util.Locale
 
 // Refactored to use the unified sealed class UiState
@@ -51,10 +56,13 @@ class RoutInViewModel(application: Application) :
     private val _onboardingState = mutableStateOf(OnboardingState())
     val onboardingState: State<OnboardingState> = _onboardingState
 
-    private val _habitBlocks = mutableStateOf<List<HabitBlock>>(
-        MockDataSeed.getInitialHabits().toMutableList().also { resolveCollisions(it) }
-    )
+    private val _habitBlocks = mutableStateOf<List<HabitBlock>>(emptyList())
     val habitBlocks: State<List<HabitBlock>> = _habitBlocks
+
+    // ─── SPEC10: Persistency Components ───────────────────────────────────────
+    private val gson = Gson()
+    private val sharedPrefs: SharedPreferences = application.getSharedPreferences("routin_prefs", Context.MODE_PRIVATE)
+    private val KEY_HABITS_PREF = "routin_habits_json"
 
     private val _uiState = mutableStateOf<UiState>(UiState.Idle)
     val uiState: State<UiState> = _uiState
@@ -117,12 +125,23 @@ class RoutInViewModel(application: Application) :
             return@derivedStateOf "Llevas ${completedCount}/${trackable.size} completados. Tu siguiente reto es ${nextPending.name} a las ${nextPending.scheduledTime}. ¡Tú puedes!"
         }
 
+        val greeting = getDynamicGreeting()
+        
         // Priority 6: Default — no completions yet
         if (nextPending != null) {
-            return@derivedStateOf "¡Buen día, Gabriel! Tu agenda está lista. Empieza con ${nextPending.name} a las ${nextPending.scheduledTime}."
+            return@derivedStateOf "¡$greeting, Gabriel! Tu agenda está lista. Empieza con ${nextPending.name} a las ${nextPending.scheduledTime}."
         }
 
-        "¡Buen día, Gabriel! Tu agenda está lista."
+        "¡$greeting, Gabriel! Tu agenda está lista."
+    }
+
+    fun getDynamicGreeting(): String {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        return when (hour) {
+            in 5..11 -> "Buenos días"
+            in 12..18 -> "Buenas tardes"
+            else -> "Buenas noches"
+        }
     }
 
     // ─── Native Hardware Engines ──────────────────────────────────────────────
@@ -136,6 +155,37 @@ class RoutInViewModel(application: Application) :
         // Wire notification action callbacks so the receiver can dispatch UI mutations
         NotificationActionReceiver.onMoveHabit630 = { onNotificationMoveReadingTo1830() }
         NotificationActionReceiver.onRelocateHabit730 = { onNotificationRelocateGymTo1930() }
+
+        loadHabitsFromPrefs()
+        rescheduleAlarms()
+    }
+
+    private fun loadHabitsFromPrefs() {
+        val json = sharedPrefs.getString(KEY_HABITS_PREF, null)
+        if (!json.isNullOrEmpty()) {
+            try {
+                val type = object : TypeToken<List<HabitBlock>>() {}.type
+                val loadedBlocks: List<HabitBlock> = gson.fromJson(json, type)
+                _habitBlocks.value = loadedBlocks
+            } catch (e: Exception) {
+                e.printStackTrace()
+                loadMockSeed()
+            }
+        } else {
+            loadMockSeed()
+        }
+    }
+
+    private fun loadMockSeed() {
+        val seeds = MockDataSeed.getInitialHabits().toMutableList()
+        resolveCollisions(seeds)
+        _habitBlocks.value = seeds
+        saveHabitsToPrefs()
+    }
+
+    private fun saveHabitsToPrefs() {
+        val json = gson.toJson(_habitBlocks.value)
+        sharedPrefs.edit().putString(KEY_HABITS_PREF, json).apply()
     }
 
     // ─── TextToSpeech Lifecycle ───────────────────────────────────────────────
@@ -458,6 +508,7 @@ class RoutInViewModel(application: Application) :
             }
         }
         _habitBlocks.value = updatedList
+        saveHabitsToPrefs()
     }
 
     // ─── SPEC09: Conversational AI Engine ─────────────────────────────────────
@@ -711,6 +762,8 @@ class RoutInViewModel(application: Application) :
         mutable.transform()
         resolveCollisions(mutable)
         _habitBlocks.value = mutable
+        saveHabitsToPrefs()
+        rescheduleAlarms()
     }
 
     /**
@@ -817,6 +870,57 @@ class RoutInViewModel(application: Application) :
             .build()
 
         NotificationManagerCompat.from(context).notify(NotificationHelper.NOTIF_ID_MCP, notification)
+    }
+
+    /** SPEC11: Registers exact alarms for all PENDING habits */
+    private fun rescheduleAlarms() {
+        val context = getApplication<Application>()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        val pendingFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+
+        val now = Calendar.getInstance()
+
+        _habitBlocks.value.filter { it.status == HabitBlock.StatusConstants.PENDING }.forEach { block ->
+            val parts = block.scheduledTime.split(":")
+            val hour = parts[0].toInt()
+            val minute = parts[1].toInt()
+
+            val calendar = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+
+            if (calendar.before(now)) {
+                calendar.add(Calendar.DATE, 1)
+            }
+
+            val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+                action = NotificationConfig.ACTION_ROUTINE_ALARM
+                putExtra(NotificationConfig.EXTRA_HABIT_ID, block.id)
+                putExtra(NotificationConfig.EXTRA_HABIT_NAME, block.name)
+            }
+
+            // Android replaces the existing alarm because we use the same block.id
+            val pendingIntent = PendingIntent.getBroadcast(context, block.id, intent, pendingFlag)
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                } else {
+                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                }
+            } catch (e: SecurityException) {
+                // Missing SCHEDULE_EXACT_ALARM on Android 14+
+                e.printStackTrace()
+            }
+        }
     }
 
     // ─── Lifecycle Cleanup ────────────────────────────────────────────────────
