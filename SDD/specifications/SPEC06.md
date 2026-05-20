@@ -50,7 +50,11 @@ The interaction modifies the existing `HabitBlock` state.
 fun toggleHabitCompletion(habitId: Int) {
     val updatedList = _habitBlocks.value.map { block ->
         if (block.id == habitId) {
-            val nextStatus = if (block.status == "COMPLETED") "PENDING" else "COMPLETED"
+            val nextStatus = if (block.status == HabitBlock.StatusConstants.COMPLETED) {
+                HabitBlock.StatusConstants.PENDING
+            } else {
+                HabitBlock.StatusConstants.COMPLETED
+            }
             block.copy(status = nextStatus)
         } else {
             block
@@ -89,7 +93,8 @@ fun toggleHabitCompletion(habitId: Int) {
 1. **Accessibility Compliance:** When the background shifts to `WellbeingMint`, all foreground text within the card must instantly flip to `DeepPurpleNavy`. Using `OffWhiteSerenity` on a Mint background violates WCAG contrast guidelines and will cause visual fatigue.
 2. **Animation:** The color transition should not be abrupt. Use `animateColorAsState` to smoothly interpolate between `DarkSurface` and `WellbeingMint`.
 3. **No Network Calls:** The state mutation must remain entirely in-memory within the `ViewModel` per the Offline-First MVP architecture.
-4. **State Isolation:** Compose must remain declarative. The tap must simply invoke the ViewModel function and respond to the emitted state change.
+4. **State Isolation & Clicks Decoupling:** Compose must remain declarative. The `HabitBlockCard` must expose a lambda `onClick: () -> Unit` in its signature so the click event can be propagated up to the `LazyColumn` without passing the `ViewModel` down to the card level.
+5. **Structured State Constants:** The `toggleHabitCompletion` method must strictly use the structured constants `HabitBlock.StatusConstants.COMPLETED` and `HabitBlock.StatusConstants.PENDING`. Using raw strings will break the visual color resolution logic.
 
 ---
 

@@ -97,10 +97,22 @@ Reference: `Architectural_Context.md §3.4 — Flow D`.
 1. **Unique ID Generation**: The ID generation logic must strictly use `(_habitBlocks.value.maxOfOrNull { it.id } ?: 0) + 1` to prevent duplicate key crashes in Compose `LazyColumn`s.
 2. **State Isolation**: The dialog logic must only gather parameters and invoke `addCustomHabit` on the `ViewModel`. No state mutation is permitted in the view.
 3. **Collision Resolution**: Adding a new habit must trigger the existing `resolveCollisions` algorithm to cascade any conflicts smoothly.
+4. **FAB Slot Refactor**: The `Scaffold` `floatingActionButton` parameter only accepts a single composable node. To support both the Add Habit and Microphone FABs without hierarchical crashes, they must be wrapped in a `Column(verticalArrangement = Arrangement.spacedBy(16.dp), horizontalAlignment = Alignment.End)`.
 
 ---
 
-## 8. Acceptance Criteria
+## 8. AlertDialog Implementation Plan
+
+- **State Management**: Create a boolean `MutableState` (e.g., `showAddDialog`) in `MainDashboardScreen` to track visibility.
+- **Component**: Build a Material Design 3 `AlertDialog`.
+- **Inputs**: Use `OutlinedTextField` components to capture "Habit Name", "Scheduled Time" (HH:mm format), and "Duration" (numeric).
+- **Actions**:
+  - **Confirm**: Parse inputs, invoke `viewModel.addCustomHabit(name, time, duration)`, and set `showAddDialog = false`.
+  - **Dismiss**: Set `showAddDialog = false` without calling the view model.
+
+---
+
+## 9. Acceptance Criteria
 
 | #  | Criterion                                                                                                  | Verification     |
 | :- | :--------------------------------------------------------------------------------------------------------- | :--------------- |
