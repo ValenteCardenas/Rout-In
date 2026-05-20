@@ -90,6 +90,14 @@ The agent must configure the `ViewModel` to react smoothly to the following thre
   3. The `resolveCollisions` helper instantly re-arranges the schedule to accommodate the new block.
   4. The reactive `uiState` updates, smoothly animating the new item into the feed.
 
+### 3.5 Flow E: Interactive Habit Completion
+* **Trigger Event:** User clicks the interaction target or icon on a `PENDING` habit block.
+* **State Machine Traversal:**
+  1. The UI dispatches the completion intent to the `ViewModel`.
+  2. The `ViewModel` atomically mutates the target item's status from `PENDING` to `COMPLETED`.
+  3. The reactive `habitBlocks` StateFlow emits the new state.
+  4. Jetpack Compose smoothly animates the card background to `WellbeingMint` and swaps typography to `DeepPurpleNavy` for strict accessibility contrast.
+
 ---
 
 ## 4. Technical Constraints for Code Generation
