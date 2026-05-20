@@ -82,6 +82,14 @@ The agent must configure the `ViewModel` to react smoothly to the following thre
   4. Trigger a contextual push notification presenting an empathetic rescheduling proposal to move the workout to 7:30 PM.
   5. Upon confirmation, the workout is re-inserted at 7:30 PM, restoring system state parity.
 
+### 3.4 Flow D: Manual Habit Creation (In-Memory Fallback)
+* **Trigger Event:** User clicks the "Add Habit" floating action button and submits the custom habit dialog.
+* **State Machine Traversal:**
+  1. The `ViewModel` calculates a unique incremental ID to avoid key collision exceptions.
+  2. The custom habit is appended to the main `habitBlocks` collection with `source = INTERNAL` and `isImmutable = false`.
+  3. The `resolveCollisions` helper instantly re-arranges the schedule to accommodate the new block.
+  4. The reactive `uiState` updates, smoothly animating the new item into the feed.
+
 ---
 
 ## 4. Technical Constraints for Code Generation
