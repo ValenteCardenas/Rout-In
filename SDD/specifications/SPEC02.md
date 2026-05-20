@@ -161,17 +161,26 @@ val insertedMeeting = HabitBlock(
 | 105 | Lectura Recreativa   | 17:00          | 60 min   | `PENDING`   | false       | `INTERNAL` |
 | 106 | Gym / Workout        | 18:00          | 90 min   | `PENDING`   | false       | `INTERNAL` |
 | 107 | Cena                 | 19:30          | 60 min   | `PENDING`   | false       | `INTERNAL` |
+| 108 | Reading Block        | 17:00          | 60 min   | `PENDING`   | false       | `INTERNAL` |
 
-> After executing the voice command, all non-immutable blocks with `scheduledTime >= "17:00"` are shifted +60 minutes to accommodate the new `"Junta de Proyecto de Investigación"` block at 17:00.
+> **Note (ID uniqueness):** "Almuerzo" uses `id = 102` and "Reading Block" uses `id = 108`. These are distinct to prevent `LazyColumn` duplicate-key crashes. Both exist at 17:00 concurrently; the display order between them at the same time is sorted by `id`.
 
-**Expected post-mutation state:**
+> After executing the voice command, all non-immutable blocks with `scheduledTime >= "17:00"` are shifted +60 minutes to accommodate the new `"Junta de Proyecto de Investigación"` block at 17:00. **Blocks scheduled before 17:00 are NOT mutated and must remain in the list.**
 
-| ID  | Block Name                         | Scheduled Time | Status    |
-| :-- | :--------------------------------- | :------------- | :-------- |
-| 201 | Junta de Proyecto de Investigación | 17:00          | `PENDING` |
-| 105 | Lectura Recreativa                 | 18:00          | `PENDING` |
-| 106 | Gym / Workout                      | 19:00          | `PENDING` |
-| 107 | Cena                               | 20:30          | `PENDING` |
+**Expected post-mutation state (full list — do not omit unchanged rows):**
+
+| ID  | Block Name                         | Scheduled Time | Status      | Changed? |
+| :-- | :--------------------------------- | :------------- | :---------- | :------- |
+| 101 | Clase de Arquitectura              | 14:00          | `COMPLETED` | No       |
+| 102 | Almuerzo                           | 14:00          | `PENDING`   | No       |
+| 103 | Estudio Cálculo                    | 15:00          | `PENDING`   | No       |
+| 104 | Proyecto de Software               | 16:00          | `PENDING`   | No       |
+| 201 | Junta de Proyecto de Investigación | 17:00          | `PENDING`   | **Inserted** |
+| 105 | Lectura Recreativa                 | 18:00          | `PENDING`   | **+60 min** |
+| 106 | Gym / Workout                      | 19:00          | `PENDING`   | **+60 min** |
+| 107 | Cena                               | 20:30          | `PENDING`   | **+60 min** |
+
+> ⚠️ **Implementation note:** The mutation predicate is `scheduledTime >= "17:00" && !isImmutable`. Blocks at 14:00–16:00 are outside this range and must be left in the list exactly as seeded. An agent must never drop or filter them from the `StateFlow<List<HabitBlock>>` after this transformation.
 
 ---
 
@@ -199,6 +208,7 @@ Design tokens from `UI_Guide_Context.md §2, §4` apply to all components.
 6. **Coroutine Dispatcher**: Use `viewModelScope.launch(Dispatchers.Default)` for the delay, then `withContext(Dispatchers.Main)` for TTS and list mutation to ensure thread safety.
 7. **Animation**: Block displacement must use `animateItemPlacement()` modifier inside the `LazyColumn`'s item key lambda for smooth visual displacement.
 8. **Prohibited Libraries**: No `Retrofit`, `Ktor`, `Room`, `Supabase SDK`, or any AI/network client. See `Tech-Stack_Context.md §5`.
+9. **Debug Isolation — Voice Trigger Does Not Reset State**: This flow mutates whatever blocks are currently in the list at the time of the FAB release. It does **not** reset the list. For predictable demo sequencing, see SPEC03 §9.9 and SPEC04 §9.9, which mandate that their own debug triggers restore their required preconditions before firing.
 
 ---
 

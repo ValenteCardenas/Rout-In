@@ -28,7 +28,7 @@ Specify the automatic reconciliation flow when an immutable external event (from
 | :- | :-------------------------------------------------------------------------------------------------------------- |
 | 1  | Onboarding has been completed (SPEC01) with `selectedMode = PREMIUM_CLOUD_SUBSCRIPTION`.                         |
 | 2  | `MainActivity.onCreate()` has already created the `"rout_in_behavioral_alerts"` `NotificationChannel` (SPEC01). |
-| 3  | The ViewModel's in-memory list contains a `"Gym / Workout"` block at `scheduledTime = "18:00"` with `id = 106`. |
+| 3  | The ViewModel's in-memory list contains a `"Gym / Workout"` block with `id = 106`. Its `scheduledTime` must be `"18:00"` for the collision to occur — `simulateMcpCollision()` enforces this via precondition reset (see §9.9). |
 | 4  | The `DebugDashboard` section is visible and accessible on `MainDashboardScreen`.                                  |
 
 ---
@@ -213,6 +213,7 @@ Design tokens from `UI_Guide_Context.md §2, §4`:
 6. **Visual Differentiation**: External immutable blocks must be visually distinguishable from internal blocks via the `ExternalImmutableCard` variant (`ClarityBlue` background + lock icon). `PendingReallocationCard` must indicate the displaced state with reduced opacity.
 7. **State Isolation**: All event ingestion, collision detection, state mutation, and notification dispatch logic resides exclusively in the ViewModel. `@Composable` functions observe `StateFlow<List<HabitBlock>>` only.
 8. **`POST_NOTIFICATIONS` Permission**: Required on API 33+. Already handled in `MainActivity` per SPEC03 §9.8.
+9. **Demo Precondition Reset (Order-Independence)**: `simulateMcpCollision()` must begin by **restoring** `habitBlocks[id=106]` to its required precondition state (`scheduledTime = "18:00"`, `status = "PENDING"`, `isImmutable = false`) and removing any previously inserted external exam blocks before executing the Calendar Priority Rule. This guarantees that pressing "Simulate MCP Collision" always produces the correct collision — even if the voice command (SPEC02) already shifted the Gym to 19:00.
 
 ---
 

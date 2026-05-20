@@ -27,7 +27,7 @@ Specify how the app detects a habit in "Critical Friction" state (skipped 3 time
 | #  | Precondition                                                                                                          |
 | :- | :-------------------------------------------------------------------------------------------------------------------- |
 | 1  | Onboarding has been completed (SPEC01) and `MainActivity.onCreate()` has already created the `NotificationChannel`.   |
-| 2  | The `"Reading Block"` habit (id = `102`) exists in the ViewModel's in-memory list with `status = "PENDING"`.          |
+| 2  | The `"Reading Block"` habit (id = `108`) exists in the ViewModel's in-memory list with `status = "PENDING"`.          |
 | 3  | The telemetry engine tracks that "Reading Block" has been skipped 3 consecutive times (simulated via debug trigger).  |
 
 ---
@@ -154,15 +154,15 @@ Reuses the expanded seed from SPEC02 §7. Key entry for this flow:
 
 | ID  | Block Name    | Scheduled Time | Status     | Consecutive Skips |
 | :-- | :------------ | :------------- | :--------- | :---------------- |
-| 102 | Reading Block | 17:00          | `PENDING`  | 3 (simulated)     |
+| 108 | Reading Block | 17:00          | `PENDING`  | 3 (simulated)     |
 
-> **Note:** Per SPEC02 §7, "Lectura Recreativa" (id=105) is the primary reading block for SPEC02. For SPEC03, the target is the canonical `"Reading Block"` with `id = 102` per `Mock_Data_Seed_Context.md §3`. Ensure the expanded seed includes both blocks with distinct IDs to avoid collisions.
+> **Note (ID uniqueness):** The canonical expanded seed uses `id = 102` for "Almuerzo". "Reading Block" is assigned `id = 108` to guarantee every entry in the combined dataset has a globally unique identifier, preventing a `LazyColumn` duplicate-key `IllegalArgumentException` crash.
 
 After simulation trigger:
 
 | ID  | Block Name    | Scheduled Time | Status        |
 | :-- | :------------ | :------------- | :------------ |
-| 102 | Reading Block | 18:30          | `REALLOCATED` |
+| 108 | Reading Block | 18:30          | `REALLOCATED` |
 
 ---
 
@@ -191,6 +191,7 @@ Design tokens from `UI_Guide_Context.md §2, §4`:
 6. **Vibrator API branching**: Use `VibratorManager` for API 31+, fall back to deprecated `Vibrator` for API 26–30. See `Native_API_Recipes_Context.md §4`.
 7. **State Isolation**: Haptic trigger, notification dispatch, and list mutation reside exclusively in the ViewModel or its helper utilities. `@Composable` functions are declarative observers only.
 8. **`POST_NOTIFICATIONS` Permission**: For API 33+ (Android 13), the app must declare and request `android.permission.POST_NOTIFICATIONS` at runtime. Handle in `MainActivity`.
+9. **Demo Precondition Reset (Order-Independence)**: `simulateCriticalFriction()` must begin by **restoring** `habitBlocks[id=108]` to its required precondition state (`scheduledTime = "17:00"`, `status = "PENDING"`) before applying any mutation or firing the notification. This guarantees the flow produces the correct result regardless of whether the voice command (SPEC02) or MCP collision (SPEC04) was executed first.
 
 ---
 
@@ -198,12 +199,12 @@ Design tokens from `UI_Guide_Context.md §2, §4`:
 
 | #  | Criterion                                                                                          | Verification     |
 | :- | :------------------------------------------------------------------------------------------------- | :--------------- |
-| 1  | Pressing "Simulate Critical Friction" changes `habitBlocks[id=102].status` to `"FRICTION"`.        | Unit Test        |
+| 1  | Pressing "Simulate Critical Friction" changes `habitBlocks[id=108].status` to `"FRICTION"`.        | Unit Test        |
 | 2  | The habit card visually reflects the friction state (`OptimismYellow` background, ⚠️ icon).        | UI Test          |
 | 3  | The device executes the custom haptic pattern `{0,250,200,250,150,400}`.                           | Device Test      |
 | 4  | A real heads-up notification is dispatched with the specified empathetic text in Spanish.          | Device Test      |
 | 5  | The notification contains a "Move to 6:30 PM" action button backed by a `PendingIntent`.           | Device Test      |
-| 6  | Pressing "Move to 6:30 PM" sets `scheduledTime = "18:30"` and `status = "REALLOCATED"`.           | Unit Test        |
+| 6  | Pressing "Move to 6:30 PM" sets `habitBlocks[id=108].scheduledTime = "18:30"` and `status = "REALLOCATED"`. | Unit Test        |
 | 7  | The notification is dismissed after confirmation.                                                   | Device Test      |
 | 8  | The dashboard reflects the updated schedule without a manual refresh.                              | UI Test          |
 | 9  | No network clients, Room, or cloud SDKs are imported.                                              | Build Verify     |
