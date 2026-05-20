@@ -11,7 +11,7 @@ This document defines the strict, lightweight, and fully localized technical sta
 | **Android Studio** | 2024.2.1 (Ladybug) or higher | Integrated Development Environment (IDE) used for writing, previewing, and deploying the native application to an emulator or physical test device. |
 | **Android Gradle Plugin (AGP)** | 8.7.0 | Build automation tool used to compile the application resources, handle dependencies, and package the final debug APK. |
 | **Gradle Wrapper** | 8.10 | Build execution environment paired with AGP to coordinate multi-module configuration and build lifecycle tasks. |
-| **Java Development Kit (JDK)** | 17 (JetBrains Runtime) | The underlying runtime environment required by Android Studio and Gradle to compile modern Kotlin code. |
+| **Java Development Kit (JDK)** | 21 (JetBrains Runtime) | The underlying runtime environment required by Android Studio and Gradle to compile modern Kotlin code. |
 | **Minimum SDK (minSdk)** | API Level 26 (Android 8.0 Oreo) | Ensures compatibility with native vibration channels, advanced background workers, and modern UI rendering. |
 | **Target SDK (targetSdk)** | API Level 35 (Android 15) | Declares compilation compliance against the latest Android operating system behaviors and security sandboxing policies. |
 
