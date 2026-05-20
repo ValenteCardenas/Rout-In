@@ -1,3 +1,8 @@
+---
+name: routin-mvp-development
+description: 'Senior Android Software Engineer directive for building the Rout-In MVP. Use when implementing the Material Design 3 UI, MVVM state machine, push notifications, and mock simulation features for the SIE 2026 Hackathon.'
+---
+
 # Rout-In MVP Developer Skill & Execution Directive
 
 **Role:** Senior Android Software Engineer  
