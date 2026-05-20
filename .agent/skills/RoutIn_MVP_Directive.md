@@ -1,15 +1,15 @@
 # Rout-In MVP Developer Skill & Execution Directive
 
 **Role:** Senior Android Software Engineer  
-**Objective:** Initialize and construct from scratch the complete source code for the "Rout-In" MVP tailored for the SIE 2026 Hackathon.
+**Objective:** Iterate, build upon the existing foundation, and complete the source code for the "Rout-In" MVP tailored for the SIE 2026 Hackathon.
 
 ## 🚨 HIGH-LEVEL CRITICAL INSTRUCTION
-Given that this is a completely empty, greenfield project, you must generate the complete directory structure and implement a self-contained, In-Memory State Machine MVVM architecture. Do **NOT** integrate actual production dependencies (no Supabase, no OpenAI, no external network protocols). The application must emulate real-world system latencies, voice interaction responses, and complex scheduling state mutations using purely local Kotlin constructs and native Android hardware APIs.
+Given that the baseline Android project is already initialized, you must integrate seamlessly into the existing structure and implement a self-contained, In-Memory State Machine MVVM architecture. Do **NOT** integrate actual production dependencies (no Supabase, no OpenAI, no external network protocols). The application must emulate real-world system latencies, voice interaction responses, and complex scheduling state mutations using purely local Kotlin constructs and native Android hardware APIs.
 
 ---
 
 ## 🛠️ TARGET CODE ARCHITECTURE & DIRECTORY STRUCTURE
-You must create the following functional components organized cleanly by package:
+You must implement or refine the following functional components, organizing them cleanly by package within the existing `app` module:
 
 ### 1. Design System (`ui/theme/Theme.kt`, `Color.kt`, `Type.kt`)
 Complete implementation of the Material Design 3 design system tokens. Assume standard system fonts (`FontFamily.SansSerif`) or a structural placeholder for `Comfortaa` utilizing heavy weights (`FontWeight.Bold`) by default to match the brand identity profile. Implement the official palette:
@@ -85,5 +85,5 @@ The single-activity entry point. Configures the high-importance behavioral alert
 - [ ] Read `Architecture/Tech-Stack_Context.md` to ensure correct Compose BOM and native SDK API boundaries are respected.
 - [ ] Read `Architecture/General_Project_Context.md` to verify alignment with the product vision.
 - [ ] Read `SDD/specifications/SPEC01.md` to perfectly model the Deployment Onboarding state machine.
-- [ ] Generate the `ui`, `data`, `viewmodel`, and `receiver` packages sequentially as described above.
+- [ ] Review the existing codebase and implement the `ui`, `data`, `viewmodel`, and `receiver` packages sequentially as described above.
 - [ ] Ensure the MVP is 100% self-contained in-memory before completing the task.
