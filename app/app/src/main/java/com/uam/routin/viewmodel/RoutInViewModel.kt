@@ -59,6 +59,72 @@ class RoutInViewModel(application: Application) :
     private val _uiState = mutableStateOf<UiState>(UiState.Idle)
     val uiState: State<UiState> = _uiState
 
+    // ─── SPEC08: AI Copilot Derived State ─────────────────────────────────────
+
+    /** Hardcoded streak counter for MVP demo. */
+    val streakDays: Int = 5
+
+    /** Reactive completion progress (0f–1f) derived from habit list state. */
+    val completionProgress: State<Float> = androidx.compose.runtime.derivedStateOf {
+        val trackable = _habitBlocks.value.filter {
+            it.source == HabitBlock.Source.INTERNAL && !it.isImmutable
+        }
+        if (trackable.isEmpty()) 0f
+        else trackable.count { it.status == HabitBlock.StatusConstants.COMPLETED }.toFloat() / trackable.size
+    }
+
+    /** Reactive completion label (e.g., "3/5 completados") derived from habit list state. */
+    val completionLabel: State<String> = androidx.compose.runtime.derivedStateOf {
+        val trackable = _habitBlocks.value.filter {
+            it.source == HabitBlock.Source.INTERNAL && !it.isImmutable
+        }
+        val completed = trackable.count { it.status == HabitBlock.StatusConstants.COMPLETED }
+        "${completed}/${trackable.size} completados"
+    }
+
+    /** Reactive AI coaching message using priority-ordered condition flags. */
+    val coachingMessage: State<String> = androidx.compose.runtime.derivedStateOf {
+        val blocks = _habitBlocks.value
+
+        // Priority 1: Any block in FRICTION state
+        val frictionBlock = blocks.find { it.status == HabitBlock.StatusConstants.FRICTION }
+        if (frictionBlock != null) {
+            return@derivedStateOf "Noto que ${frictionBlock.name} te está costando hoy. No te satures; podemos moverlo para que respires."
+        }
+
+        // Priority 2: Any block in PENDING_REALLOCATION state
+        val pendingRealloc = blocks.find { it.status == HabitBlock.StatusConstants.PENDING_REALLOCATION }
+        if (pendingRealloc != null) {
+            return@derivedStateOf "He protegido tu bloque académico. ¿Deseas reubicar ${pendingRealloc.name} para mantener tu bienestar?"
+        }
+
+        // Priority 3: Any block recently REALLOCATED
+        val reallocated = blocks.find { it.status == HabitBlock.StatusConstants.REALLOCATED }
+        if (reallocated != null) {
+            return@derivedStateOf "Listo, ya reorganicé tu agenda. Tu ${reallocated.name} ahora está a las ${reallocated.scheduledTime}. ¡Sigue así!"
+        }
+
+        // Priority 4: All trackable blocks completed
+        val trackable = blocks.filter { it.source == HabitBlock.Source.INTERNAL && !it.isImmutable }
+        val completedCount = trackable.count { it.status == HabitBlock.StatusConstants.COMPLETED }
+        if (trackable.isNotEmpty() && completedCount == trackable.size) {
+            return@derivedStateOf "🎉 ¡Increíble, Gabriel! Completaste todas tus rutinas hoy. Descansa bien, mañana seguimos."
+        }
+
+        // Priority 5: Partial progress
+        val nextPending = trackable.find { it.status == HabitBlock.StatusConstants.PENDING }
+        if (completedCount > 0 && nextPending != null) {
+            return@derivedStateOf "Llevas ${completedCount}/${trackable.size} completados. Tu siguiente reto es ${nextPending.name} a las ${nextPending.scheduledTime}. ¡Tú puedes!"
+        }
+
+        // Priority 6: Default — no completions yet
+        if (nextPending != null) {
+            return@derivedStateOf "¡Buen día, Gabriel! Tu agenda está lista. Empieza con ${nextPending.name} a las ${nextPending.scheduledTime}."
+        }
+
+        "¡Buen día, Gabriel! Tu agenda está lista."
+    }
+
     // ─── Native Hardware Engines ──────────────────────────────────────────────
 
     private var ttsEngine: TextToSpeech? = TextToSpeech(application, this)
@@ -392,6 +458,193 @@ class RoutInViewModel(application: Application) :
             }
         }
         _habitBlocks.value = updatedList
+    }
+
+    // ─── SPEC09: Conversational AI Engine ─────────────────────────────────────
+
+    /**
+     * Result of processing a natural-language command.
+     * Contains the response text for both the UI and TTS engine.
+     */
+    data class CommandResult(
+        val responseText: String,
+        val wasUnderstood: Boolean
+    )
+
+    /**
+     * Processes a natural-language command using a local regex-based keyword engine.
+     * Returns a [CommandResult] with the response text. Executes the corresponding
+     * schedule mutation if the command is understood.
+     *
+     * Supported patterns:
+     * 1. "mueve {habit} a las {HH:mm}" — updates scheduled time
+     * 2. "terminé/completé/listo" — toggles next pending habit to COMPLETED
+     * 3. "agrega {name} a las {HH:mm} por {duration} minutos" — creates new habit
+     * 4. "cancela/elimina {habit}" — deletes matching habit
+     * 5. "junta/reunión a las {HH:mm}" — injects meeting and shifts habits (SPEC02 flow)
+     */
+    fun processNaturalCommand(input: String): CommandResult {
+        val normalized = input.lowercase().trim()
+
+        // Pattern 1: Move habit — "mueve mi gimnasio a las 20:00"
+        val movePattern = Regex("""muev[ea]?\s+(?:mi\s+)?(.+?)\s+a\s+las?\s+(\d{1,2}(?::\d{2})?)""")
+        movePattern.find(normalized)?.let { match ->
+            val habitQuery = match.groupValues[1]
+            val rawTime = match.groupValues[2]
+            val time = normalizeCommandTime(rawTime)
+            val habit = fuzzyFindHabit(habitQuery)
+            if (habit != null) {
+                updateCustomHabit(habit.id, habit.name, time, habit.durationMinutes, habit.isImmutable)
+                return CommandResult(
+                    "Entendido, Gabriel. Moviendo ${habit.name} a las $time.",
+                    true
+                )
+            }
+        }
+
+        // Pattern 2: Complete next pending — "ya terminé" / "completé" / "listo"
+        if (normalized.contains("termin") || normalized.contains("complet") || normalized.contains("listo")) {
+            val trackable = _habitBlocks.value.filter {
+                it.source == HabitBlock.Source.INTERNAL && !it.isImmutable
+            }
+            val nextPending = trackable.find { it.status == HabitBlock.StatusConstants.PENDING }
+            if (nextPending != null) {
+                toggleHabitCompletion(nextPending.id)
+                return CommandResult(
+                    "¡Excelente! Marcando ${nextPending.name} como completado.",
+                    true
+                )
+            }
+            return CommandResult(
+                "No hay hábitos pendientes por completar. ¡Buen trabajo!",
+                true
+            )
+        }
+
+        // Pattern 3: Add habit — "agrega estudio de cálculo a las 21:00 por 45 minutos"
+        val addPattern = Regex("""(?:agrega|nueva|añade)\s+(.+?)\s+a\s+las?\s+(\d{1,2}(?::\d{2})?)\s*(?:por\s+(\d+)\s*min)?""")
+        addPattern.find(normalized)?.let { match ->
+            val name = match.groupValues[1].replaceFirstChar { it.uppercase() }
+            val time = normalizeCommandTime(match.groupValues[2])
+            val duration = match.groupValues[3].toIntOrNull() ?: 60
+            addCustomHabit(name, time, duration)
+            return CommandResult(
+                "Perfecto. Agregando $name a las $time a tu agenda.",
+                true
+            )
+        }
+
+        // Pattern 4: Delete habit — "cancela mi gimnasio" / "elimina reading"
+        val deletePattern = Regex("""(?:cancela|elimina)\s+(?:mi\s+)?(.+)""")
+        deletePattern.find(normalized)?.let { match ->
+            val habitQuery = match.groupValues[1]
+            val habit = fuzzyFindHabit(habitQuery)
+            if (habit != null) {
+                deleteCustomHabit(habit.id)
+                return CommandResult(
+                    "Entendido. Eliminando ${habit.name} de tu agenda.",
+                    true
+                )
+            }
+        }
+
+        // Pattern 5: Meeting injection — "junta a las 17:00" / "reunión a las 5"
+        val meetingPattern = Regex("""(?:junta|reunión|reunion)\s+.*?a\s+las?\s+(\d{1,2}(?::\d{2})?)""")
+        meetingPattern.find(normalized)?.let { match ->
+            val time = normalizeCommandTime(match.groupValues[1])
+            val timeMinutes = timeToMinutes(time)
+            // Shift habits at or after the meeting time
+            mutateHabitBlocks {
+                forEach { block ->
+                    if (timeToMinutes(block.scheduledTime) >= timeMinutes && !block.isImmutable) {
+                        block.scheduledTime = shiftTime(block.scheduledTime, 60)
+                    }
+                }
+                removeAll { it.id == 201 }
+                add(
+                    HabitBlock(
+                        id = 201,
+                        name = "Junta",
+                        scheduledTime = time,
+                        durationMinutes = 60,
+                        status = HabitBlock.StatusConstants.PENDING,
+                        isImmutable = true,
+                        source = HabitBlock.Source.INTERNAL
+                    )
+                )
+                sortBy { it.scheduledTime }
+            }
+            return CommandResult(
+                "He protegido tu espacio para la junta a las $time. Moviendo tus hábitos de la tarde.",
+                true
+            )
+        }
+
+        // Fallback: command not recognized
+        return CommandResult(
+            "Lo siento, no entendí ese comando. Intenta con 'mueve mi gimnasio a las 8' o 'ya terminé'.",
+            false
+        )
+    }
+
+    /**
+     * Coroutine-driven orchestrator that simulates AI processing latency,
+     * executes the command, displays the response, and vocalizes it via TTS.
+     */
+    fun speakAndProcess(input: String, onResult: (CommandResult) -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = UiState.Loading
+            withContext(Dispatchers.Default) { delay(1200L) }
+            withContext(Dispatchers.Main) {
+                val result = processNaturalCommand(input)
+                _uiState.value = UiState.Speaking
+                speakEmpatheticResponse(result.responseText)
+                onResult(result)
+                delay(3000L)
+                _uiState.value = UiState.Success("Comando procesado.")
+                delay(2000L)
+                _uiState.value = UiState.Idle
+            }
+        }
+    }
+
+    /**
+     * Fuzzy matches a query string against current habit block names using
+     * multi-strategy word-level bidirectional matching.
+     *
+     * Matching strategies (first win):
+     * 1. Full query is contained in the habit name
+     * 2. Any individual query word (3+ chars) is found inside the habit name
+     * 3. Any individual habit name word (3+ chars) is found inside the query
+     */
+    private fun fuzzyFindHabit(query: String): HabitBlock? {
+        val q = query.lowercase().trim()
+        val queryWords = q.split(" ", "/").filter { it.length >= 3 }
+
+        return _habitBlocks.value.find { block ->
+            val name = block.name.lowercase()
+            val nameWords = name.split(" ", "/").filter { it.length >= 3 }
+
+            // Strategy 1: exact substring
+            name.contains(q) ||
+            // Strategy 2: any query word appears in the full name
+            queryWords.any { qWord -> name.contains(qWord) } ||
+            // Strategy 3: any name word appears in the full query
+            nameWords.any { nWord -> q.contains(nWord) }
+        }
+    }
+
+    /**
+     * Normalizes a raw time input from voice commands.
+     * Handles "8" -> "08:00", "20:00" -> "20:00", "5:30" -> "05:30".
+     */
+    private fun normalizeCommandTime(raw: String): String {
+        return if (raw.contains(":")) {
+            val parts = raw.split(":")
+            "%02d:%02d".format(parts[0].toInt(), parts[1].toInt())
+        } else {
+            "%02d:00".format(raw.toInt())
+        }
     }
 
     // ─── Private Helpers ──────────────────────────────────────────────────────

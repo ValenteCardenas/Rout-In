@@ -7,14 +7,18 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -41,35 +45,46 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -77,6 +92,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -86,6 +103,7 @@ import com.uam.routin.data.model.HabitBlock
 import com.uam.routin.ui.theme.RoutInColors
 import com.uam.routin.viewmodel.RoutInViewModel
 import com.uam.routin.viewmodel.UiState
+import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -100,7 +118,7 @@ import kotlin.math.sin
  *
  * testId: screen_main_dashboard
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MainDashboardScreen(viewModel: RoutInViewModel) {
 
@@ -114,19 +132,12 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
     var showEditDialog by remember { mutableStateOf(false) }
     var selectedHabit by remember { mutableStateOf<HabitBlock?>(null) }
 
+    // SPEC09 — Conversational AI Bottom Sheet state
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var commandResponse by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
     val isVoiceActive = uiState == UiState.Listening || uiState == UiState.Loading || uiState == UiState.Speaking
-
-    // Track precise touch events natively without pointerInput swallow issues
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            viewModel.onMicPressStart()
-        } else {
-            viewModel.onMicRelease()
-        }
-    }
 
     // FAB pulse scale — active only when voice is processing
     val infiniteTransition = rememberInfiniteTransition(label = "fab_pulse")
@@ -166,10 +177,9 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                     )
                 }
 
-                // ── Microphone FAB (SPEC02) ──────────────────────────────────────
+                // ── Microphone FAB (SPEC09) — Opens Conversational Bottom Sheet ──
                 FloatingActionButton(
-                    onClick = { /* empty, gesture handled natively by interactionSource */ },
-                    interactionSource = interactionSource,
+                    onClick = { showBottomSheet = true },
                     modifier = Modifier
                         .size(64.dp)
                         .scale(fabScale)
@@ -180,7 +190,7 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                 ) {
                     Icon(
                         imageVector = if (isVoiceActive) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
-                        contentDescription = "Simular comando de voz",
+                        contentDescription = "Abrir asistente conversacional",
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -196,10 +206,10 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            // ── Header ────────────────────────────────────────────────────────
+            // ── SPEC08: AI Copilot Progress Card ──────────────────────────────
             item {
                 Spacer(modifier = Modifier.height(24.dp))
-                DashboardHeader(uiState = uiState)
+                AICopilotCard(viewModel = viewModel, uiState = uiState)
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
@@ -280,42 +290,153 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
             }
         )
     }
+
+    // ── SPEC09: Conversational AI Bottom Sheet ────────────────────────────────
+    if (showBottomSheet) {
+        ConversationalBottomSheet(
+            uiState = uiState,
+            responseText = commandResponse,
+            onDismiss = {
+                showBottomSheet = false
+                commandResponse = null
+            },
+            onSendCommand = { input ->
+                commandResponse = null
+                viewModel.speakAndProcess(input) { result ->
+                    commandResponse = result.responseText
+                }
+            },
+            onVoicePressStart = {
+                commandResponse = null
+                viewModel.onMicPressStart()
+            },
+            onVoicePressRelease = {
+                viewModel.onMicRelease()
+            }
+        )
+    }
 }
 
-// ─── Dashboard Header ─────────────────────────────────────────────────────────
+// ─── SPEC08: AI Copilot Progress Card ─────────────────────────────────────────
 
+/**
+ * Premium AI Copilot & Progress Hub card that replaces the static header.
+ * Displays dynamic coaching messages, a completion progress bar, and a streak counter.
+ * All derived state comes from the ViewModel's reactive `derivedStateOf` properties.
+ *
+ * testId: card_ai_copilot
+ */
 @Composable
-private fun DashboardHeader(uiState: UiState) {
-    Column {
-        Text(
-            text = "Buenos días, Gabriel 👋",
-            style = MaterialTheme.typography.headlineLarge.copy(
-                color = RoutInColors.OffWhiteSerenity
+private fun AICopilotCard(viewModel: RoutInViewModel, uiState: UiState) {
+    val coachingMessage by viewModel.coachingMessage
+    val completionProgress by viewModel.completionProgress
+    val completionLabel by viewModel.completionLabel
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = completionProgress,
+        animationSpec = tween(durationMillis = 600),
+        label = "progress_anim"
+    )
+
+    // Dynamic subtitle based on voice state
+    val subtitle = when (uiState) {
+        is UiState.Listening -> "🎙 Escuchando tu comando…"
+        is UiState.Loading -> "⏳ Procesando con IA…"
+        is UiState.Speaking -> "🔊 Respondiendo…"
+        is UiState.Success -> "✅ Agenda actualizada"
+        else -> "Tu agenda de hoy · ${java.time.LocalDate.now().let {
+            "${it.dayOfMonth}/${it.monthValue}/${it.year}"
+        }}"
+    }
+    val subtitleColor = when (uiState) {
+        is UiState.Listening, is UiState.Loading, is UiState.Speaking ->
+            RoutInColors.VibrantGreenEmphasis
+        is UiState.Success -> RoutInColors.VibrantGreenEmphasis
+        else -> RoutInColors.SoftMutedLavender
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "card_ai_copilot" },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = RoutInColors.DarkSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            // ── Greeting Row ──────────────────────────────────────────────
+            Text(
+                text = "Buenos días, Gabriel 👋",
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    color = RoutInColors.OffWhiteSerenity
+                )
             )
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        val subtitle = when (uiState) {
-            is UiState.Listening -> "🎙 Escuchando tu comando…"
-            is UiState.Loading -> "⏳ Procesando con IA…"
-            is UiState.Speaking -> "🔊 Respondiendo…"
-            is UiState.Success -> "✅ Agenda actualizada"
-            else -> "Tu agenda de hoy · ${java.time.LocalDate.now().let {
-                "${it.dayOfMonth}/${it.monthValue}/${it.year}"
-            }}"
-        }
-        val subtitleColor = when (uiState) {
-            is UiState.Listening, is UiState.Loading, is UiState.Speaking ->
-                RoutInColors.VibrantGreenEmphasis
-            is UiState.Success -> RoutInColors.VibrantGreenEmphasis
-            else -> RoutInColors.SoftMutedLavender
-        }
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                color = subtitleColor,
-                fontSize = 14.sp
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    color = subtitleColor,
+                    fontSize = 13.sp
+                )
             )
-        )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Progress Bar ──────────────────────────────────────────────
+            LinearProgressIndicator(
+                progress = { animatedProgress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = RoutInColors.VibrantGreenEmphasis,
+                trackColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.15f)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ── Stats Row ─────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = completionLabel,
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        color = RoutInColors.VibrantGreenEmphasis,
+                        fontSize = 13.sp
+                    )
+                )
+                Text(
+                    text = "🔥 Racha de ${viewModel.streakDays} días",
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        color = RoutInColors.OptimismYellow,
+                        fontSize = 13.sp
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // ── AI Coaching Message ───────────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    text = "💡",
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(end = 8.dp, top = 1.dp)
+                )
+                Text(
+                    text = coachingMessage,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = RoutInColors.OffWhiteSerenity.copy(alpha = 0.85f),
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -594,10 +715,11 @@ private fun resolveStatusIcon(block: HabitBlock) = when {
     else -> Icons.Rounded.Schedule
 }
 
-// ─── Debug Dashboard ──────────────────────────────────────────────────────────
+// ─── Debug Dashboard (SPEC08: Collapsible) ───────────────────────────────────
 
 /**
- * Accessible debug panel for the SIE 2026 presentation.
+ * Collapsible debug panel for the SIE 2026 presentation.
+ * Starts minimized to reduce visual clutter on the main feed.
  * Exposes explicit simulation triggers for SPEC03 and SPEC04.
  * All calls are forwarded directly to the ViewModel — zero inline logic.
  *
@@ -605,6 +727,13 @@ private fun resolveStatusIcon(block: HabitBlock) = when {
  */
 @Composable
 private fun DebugDashboard(viewModel: RoutInViewModel) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(300),
+        label = "chevron_rotation"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -615,7 +744,13 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // ── Collapsible Header Row ────────────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
                     imageVector = Icons.Rounded.BugReport,
                     contentDescription = null,
@@ -628,31 +763,49 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
                     style = MaterialTheme.typography.labelLarge.copy(
                         color = RoutInColors.SoftMutedLavender,
                         fontSize = 12.sp
-                    )
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = if (isExpanded) "Colapsar" else "Expandir",
+                    tint = RoutInColors.SoftMutedLavender,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .rotate(chevronRotation)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // ── Expandable Content ────────────────────────────────────────
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
+                exit = shrinkVertically(animationSpec = tween(300)) + fadeOut(animationSpec = tween(200))
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(16.dp))
 
-            // SPEC03 trigger — btn_simulate_friction
-            DebugButton(
-                label = "Simulate Critical Friction",
-                description = "Marca Reading Block (id=108) como FRICTION y dispara notificación",
-                containerColor = RoutInColors.OptimismYellow,
-                testId = "btn_simulate_friction",
-                onClick = { viewModel.simulateCriticalFriction() }
-            )
+                    // SPEC03 trigger — btn_simulate_friction
+                    DebugButton(
+                        label = "Simulate Critical Friction",
+                        description = "Marca Reading Block (id=108) como FRICTION y dispara notificación",
+                        containerColor = RoutInColors.OptimismYellow,
+                        testId = "btn_simulate_friction",
+                        onClick = { viewModel.simulateCriticalFriction() }
+                    )
 
-            Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-            // SPEC04 trigger — btn_simulate_mcp
-            DebugButton(
-                label = "Simulate MCP Collision",
-                description = "Inyecta 'Sistemas Operativos Exam' y desplaza Gym (id=106)",
-                containerColor = RoutInColors.ClarityBlue,
-                testId = "btn_simulate_mcp",
-                onClick = { viewModel.simulateMcpCollision() }
-            )
+                    // SPEC04 trigger — btn_simulate_mcp
+                    DebugButton(
+                        label = "Simulate MCP Collision",
+                        description = "Inyecta 'Sistemas Operativos Exam' y desplaza Gym (id=106)",
+                        containerColor = RoutInColors.ClarityBlue,
+                        testId = "btn_simulate_mcp",
+                        onClick = { viewModel.simulateMcpCollision() }
+                    )
+                }
+            }
         }
     }
 }
@@ -1021,4 +1174,337 @@ private fun AddHabitDialog(
             }
         }
     )
+}
+
+// ─── SPEC09: Conversational AI Bottom Sheet ──────────────────────────────────
+
+/**
+ * Interactive conversational interface presented as a ModalBottomSheet.
+ * Allows the jury to type natural-language schedule commands or tap
+ * quick suggestion chips. Commands are processed by the ViewModel's
+ * local regex-based NLP engine.
+ *
+ * testId: sheet_conversational
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConversationalBottomSheet(
+    uiState: UiState,
+    responseText: String?,
+    onDismiss: () -> Unit,
+    onSendCommand: (String) -> Unit,
+    onVoicePressStart: () -> Unit,
+    onVoicePressRelease: () -> Unit
+) {
+    var inputText by remember { mutableStateOf("") }
+    val isProcessing = uiState == UiState.Loading || uiState == UiState.Speaking
+
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = RoutInColors.DarkSurface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(vertical = 12.dp)
+                    .size(width = 40.dp, height = 4.dp)
+                    .background(
+                        RoutInColors.SoftMutedLavender.copy(alpha = 0.3f),
+                        RoundedCornerShape(2.dp)
+                    )
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+                .semantics { contentDescription = "sheet_conversational" }
+        ) {
+            // ── Title ────────────────────────────────────────────────────────
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Mic,
+                    contentDescription = null,
+                    tint = RoutInColors.VibrantGreenEmphasis,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Hablemos con Rout-In",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        color = RoutInColors.OffWhiteSerenity
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Escribe o dicta un comando",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+                )
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ── Input Field ──────────────────────────────────────────────────
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = { inputText = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "input_command" },
+                placeholder = {
+                    Text(
+                        "mueve mi gimnasio a las 8...",
+                        color = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f)
+                    )
+                },
+                trailingIcon = {
+                    IconButton(
+                        onClick = {
+                            if (inputText.isNotBlank() && !isProcessing) {
+                                onSendCommand(inputText)
+                                inputText = ""
+                            }
+                        },
+                        enabled = inputText.isNotBlank() && !isProcessing
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Send,
+                            contentDescription = "Enviar comando",
+                            tint = if (inputText.isNotBlank() && !isProcessing)
+                                RoutInColors.VibrantGreenEmphasis
+                            else RoutInColors.SoftMutedLavender.copy(alpha = 0.3f)
+                        )
+                    }
+                },
+                singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = RoutInColors.OffWhiteSerenity,
+                    unfocusedTextColor = RoutInColors.SoftMutedLavender,
+                    cursorColor = RoutInColors.VibrantGreenEmphasis,
+                    focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
+                    unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.3f)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                enabled = !isProcessing
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Quick Suggestion Chips ───────────────────────────────────────
+            Text(
+                text = "Sugerencias rápidas:",
+                style = MaterialTheme.typography.labelMedium.copy(
+                    color = RoutInColors.SoftMutedLavender.copy(alpha = 0.6f)
+                )
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickSuggestionChip(
+                    label = "📅 Mover",
+                    modifier = Modifier.weight(1f),
+                    onClick = { inputText = "mueve gym a las 20:00" }
+                )
+                QuickSuggestionChip(
+                    label = "✅ Completar",
+                    modifier = Modifier.weight(1f),
+                    onClick = { inputText = "ya terminé" }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QuickSuggestionChip(
+                    label = "🆕 Agregar",
+                    modifier = Modifier.weight(1f),
+                    onClick = { inputText = "agrega estudio de cálculo a las 21:00 por 45 min" }
+                )
+                QuickSuggestionChip(
+                    label = "🗑 Cancelar",
+                    modifier = Modifier.weight(1f),
+                    onClick = { inputText = "cancela gym" }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Press-and-Hold Voice Button ─────────────────────────────────
+            var isVoiceButtonPressed by remember { mutableStateOf(false) }
+            val voiceButtonScale by animateFloatAsState(
+                targetValue = if (isVoiceButtonPressed) 0.95f else 1f,
+                animationSpec = tween(100),
+                label = "voice_btn_scale"
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .scale(voiceButtonScale)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        when {
+                            isProcessing -> RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.35f)
+                            isVoiceButtonPressed -> RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.75f)
+                            else -> RoutInColors.VibrantGreenEmphasis
+                        }
+                    )
+                    .semantics { contentDescription = "btn_voice_simulate" }
+                    .pointerInput(isProcessing) {
+                        if (!isProcessing) {
+                            detectTapGestures(
+                                onPress = {
+                                    isVoiceButtonPressed = true
+                                    onVoicePressStart()
+                                    tryAwaitRelease()
+                                    isVoiceButtonPressed = false
+                                    onVoicePressRelease()
+                                }
+                            )
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = if (isVoiceButtonPressed) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
+                        contentDescription = null,
+                        tint = RoutInColors.DeepPurpleNavy,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (isVoiceButtonPressed) "🔊 Escuchando..."
+                               else "¿En qué te puedo ayudar?",
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            color = RoutInColors.DeepPurpleNavy,
+                            fontSize = 14.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ── Processing Indicator ─────────────────────────────────────────
+            AnimatedVisibility(
+                visible = isProcessing,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300))
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = RoutInColors.VibrantGreenEmphasis,
+                        trackColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.1f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (uiState == UiState.Speaking) "🔊 Respondiendo..." else "⏳ Procesando...",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            color = RoutInColors.VibrantGreenEmphasis,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+
+            // ── AI Response ──────────────────────────────────────────────────
+            val voiceSimText = "Entendido, Gabriel. He protegido tu espacio para la junta de Proyecto de Investigación. Moviendo tus hábitos de la tarde para reducir tu estrés."
+            val showResponse = responseText != null || uiState == UiState.Speaking || uiState is UiState.Success
+            val finalResponseText = responseText ?: voiceSimText
+
+            AnimatedVisibility(
+                visible = showResponse,
+                enter = fadeIn(animationSpec = tween(400)),
+                exit = fadeOut(animationSpec = tween(200))
+            ) {
+                if (showResponse) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = RoutInColors.DeepPurpleNavy
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = "💬",
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(end = 10.dp, top = 1.dp)
+                            )
+                            Text(
+                                text = finalResponseText,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = RoutInColors.OffWhiteSerenity,
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Tappable quick-suggestion chip for the conversational bottom sheet.
+ * Pre-fills the command input field with a template command.
+ */
+@Composable
+private fun QuickSuggestionChip(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .height(40.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.1f)
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    color = RoutInColors.OffWhiteSerenity,
+                    fontSize = 12.sp
+                ),
+                maxLines = 1
+            )
+        }
+    }
 }
