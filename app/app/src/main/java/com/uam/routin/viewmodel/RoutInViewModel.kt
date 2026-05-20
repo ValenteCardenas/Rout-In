@@ -326,6 +326,49 @@ class RoutInViewModel(application: Application) :
         mutateHabitBlocks { add(newHabit) }
     }
 
+    // ─── SPEC07: Habit Update & Delete ──────────────────────────────────────────
+
+    /**
+     * Updates an existing custom habit block's mutable properties.
+     * Uses [mutateHabitBlocks] to guarantee thread-safety and automatic
+     * collision resolution — editing a block's time or immutability
+     * will cascade changes onto all dependent flexible blocks.
+     *
+     * @param id            The unique ID of the habit block to update
+     * @param name          New display name
+     * @param time          New scheduled time in \"HH:mm\" format
+     * @param duration      New duration in minutes
+     * @param isImmutable   Whether the block should be anchored (true) or flexible (false)
+     */
+    fun updateCustomHabit(id: Int, name: String, time: String, duration: Int, isImmutable: Boolean) {
+        mutateHabitBlocks {
+            val index = indexOfFirst { it.id == id }
+            if (index != -1) {
+                val old = this[index]
+                this[index] = old.copy(
+                    name = name,
+                    scheduledTime = time,
+                    durationMinutes = duration,
+                    isImmutable = isImmutable
+                )
+            }
+        }
+    }
+
+    /**
+     * Removes an existing habit block from the in-memory list.
+     * Uses [mutateHabitBlocks] to guarantee thread-safety and automatic
+     * collision resolution — gaps left by the removed block will compact
+     * surrounding flexible habits cleanly.
+     *
+     * @param id  The unique ID of the habit block to remove
+     */
+    fun deleteCustomHabit(id: Int) {
+        mutateHabitBlocks {
+            removeAll { it.id == id }
+        }
+    }
+
     // ─── SPEC06: Interactive Habit Gamification and Completion ─────────────────
 
     /**

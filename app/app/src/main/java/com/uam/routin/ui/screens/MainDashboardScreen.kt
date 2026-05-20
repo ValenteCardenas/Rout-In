@@ -15,7 +15,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.BugReport
@@ -54,6 +57,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -95,6 +100,7 @@ import kotlin.math.sin
  *
  * testId: screen_main_dashboard
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MainDashboardScreen(viewModel: RoutInViewModel) {
 
@@ -103,6 +109,10 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
 
     // SPEC05 — Add Habit Dialog visibility state
     var showAddDialog by remember { mutableStateOf(false) }
+
+    // SPEC07 — Edit/Delete Habit Dialog visibility state and target block
+    var showEditDialog by remember { mutableStateOf(false) }
+    var selectedHabit by remember { mutableStateOf<HabitBlock?>(null) }
 
     val isVoiceActive = uiState == UiState.Listening || uiState == UiState.Loading || uiState == UiState.Speaking
 
@@ -147,7 +157,7 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                         .semantics { contentDescription = "fab_add_habit" },
                     shape = CircleShape,
                     containerColor = RoutInColors.ClarityBlue,
-                    contentColor = RoutInColors.OffWhiteSerenity
+                    contentColor = RoutInColors.DeepPurpleNavy
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Add,
@@ -215,7 +225,11 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
                 ) {
                     HabitBlockCard(
                         block = block,
-                        onClick = { viewModel.toggleHabitCompletion(block.id) }
+                        onClick = { viewModel.toggleHabitCompletion(block.id) },
+                        onLongClick = {
+                            selectedHabit = block
+                            showEditDialog = true
+                        }
                     )
                 }
             }
@@ -236,6 +250,33 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
             onConfirm = { name, time, duration ->
                 viewModel.addCustomHabit(name, time, duration)
                 showAddDialog = false
+            }
+        )
+    }
+
+    // ── SPEC07: Edit Habit Dialog ─────────────────────────────────────────────
+    if (showEditDialog && selectedHabit != null) {
+        EditHabitDialog(
+            habit = selectedHabit!!,
+            onDismiss = {
+                showEditDialog = false
+                selectedHabit = null
+            },
+            onConfirm = { name, time, duration, isImmutable ->
+                viewModel.updateCustomHabit(
+                    id = selectedHabit!!.id,
+                    name = name,
+                    time = time,
+                    duration = duration,
+                    isImmutable = isImmutable
+                )
+                showEditDialog = false
+                selectedHabit = null
+            },
+            onDelete = {
+                viewModel.deleteCustomHabit(selectedHabit!!.id)
+                showEditDialog = false
+                selectedHabit = null
             }
         )
     }
@@ -391,8 +432,13 @@ private fun DrawScope.drawWaveLayer(
  *         card_habit_external_{block.id}
  *         card_habit_pending_{block.id}
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HabitBlockCard(block: HabitBlock, onClick: () -> Unit = {}) {
+private fun HabitBlockCard(
+    block: HabitBlock,
+    onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {}
+) {
 
     val (cardBackground, textOnCard) = resolveCardColors(block)
     val cardAlpha = if (block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION) 0.5f else 1f
@@ -415,11 +461,14 @@ private fun HabitBlockCard(block: HabitBlock, onClick: () -> Unit = {}) {
     }
 
     Card(
-        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .alpha(cardAlpha)
-            .semantics { contentDescription = semanticId },
+            .semantics { contentDescription = semanticId }
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = animatedBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -633,6 +682,198 @@ private fun DebugButton(
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
         )
     }
+}
+
+// ─── SPEC07: Edit Habit Dialog ───────────────────────────────────────────────
+
+/**
+ * Material Design 3 AlertDialog for in-memory habit editing and deletion.
+ * Prepopulated with the target [habit]'s current properties.
+ * Includes an "Immutable" toggle to anchor the block in the schedule and
+ * a soft-red Delete action. All mutations are delegated to the ViewModel.
+ *
+ * testId: dialog_edit_habit
+ */
+@Composable
+private fun EditHabitDialog(
+    habit: HabitBlock,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, time: String, duration: Int, isImmutable: Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
+    var habitName by remember { mutableStateOf(habit.name) }
+    var scheduledTime by remember { mutableStateOf(habit.scheduledTime) }
+    var durationText by remember { mutableStateOf(habit.durationMinutes.toString()) }
+    var isImmutable by remember { mutableStateOf(habit.isImmutable) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val timePickerDialog = remember {
+        android.app.TimePickerDialog(
+            context,
+            { _, hourOfDay, minute ->
+                scheduledTime = String.format(java.util.Locale.getDefault(), "%02d:%02d", hourOfDay, minute)
+            },
+            habit.scheduledTime.substringBefore(":").toIntOrNull() ?: 12,
+            habit.scheduledTime.substringAfter(":").toIntOrNull() ?: 0,
+            true
+        )
+    }
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = RoutInColors.OffWhiteSerenity,
+        unfocusedTextColor = RoutInColors.SoftMutedLavender,
+        cursorColor = RoutInColors.VibrantGreenEmphasis,
+        focusedBorderColor = RoutInColors.VibrantGreenEmphasis,
+        unfocusedBorderColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.4f),
+        focusedLabelColor = RoutInColors.VibrantGreenEmphasis,
+        unfocusedLabelColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f)
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.semantics { contentDescription = "dialog_edit_habit" },
+        containerColor = RoutInColors.DarkSurface,
+        titleContentColor = RoutInColors.OffWhiteSerenity,
+        textContentColor = RoutInColors.SoftMutedLavender,
+        title = {
+            Text(
+                text = "Editar Hábito",
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = habitName,
+                    onValueChange = { habitName = it },
+                    label = { Text("Nombre del hábito") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = textFieldColors
+                )
+                OutlinedTextField(
+                    value = scheduledTime,
+                    onValueChange = { },
+                    label = { Text("Hora (HH:mm)") },
+                    singleLine = true,
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = textFieldColors,
+                    trailingIcon = {
+                        androidx.compose.material3.IconButton(onClick = { timePickerDialog.show() }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Schedule,
+                                contentDescription = "Seleccionar Hora",
+                                tint = RoutInColors.SoftMutedLavender
+                            )
+                        }
+                    },
+                    interactionSource = remember { MutableInteractionSource() }
+                        .also { interactionSource ->
+                            LaunchedEffect(interactionSource) {
+                                interactionSource.interactions.collect {
+                                    if (it is androidx.compose.foundation.interaction.PressInteraction.Release) {
+                                        timePickerDialog.show()
+                                    }
+                                }
+                            }
+                        }
+                )
+                OutlinedTextField(
+                    value = durationText,
+                    onValueChange = { input ->
+                        val filtered = input.filter { it.isDigit() }
+                        if (filtered.length <= 3) durationText = filtered
+                    },
+                    label = { Text("Duración (minutos)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = textFieldColors
+                )
+                // ── Immutable Toggle ──────────────────────────────────────────
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "Fijo",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = RoutInColors.OffWhiteSerenity
+                            )
+                        )
+                        Text(
+                            text = "Ancla este bloque al horario",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = RoutInColors.SoftMutedLavender.copy(alpha = 0.6f),
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                    Switch(
+                        checked = isImmutable,
+                        onCheckedChange = { isImmutable = it },
+                        modifier = Modifier.semantics { contentDescription = "toggle_immutable" },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = RoutInColors.DeepPurpleNavy,
+                            checkedTrackColor = RoutInColors.VibrantGreenEmphasis,
+                            uncheckedThumbColor = RoutInColors.SoftMutedLavender,
+                            uncheckedTrackColor = RoutInColors.SoftMutedLavender.copy(alpha = 0.2f)
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val duration = durationText.toIntOrNull() ?: habit.durationMinutes
+                    val time = if (scheduledTime.matches(Regex("\\d{2}:\\d{2}"))) {
+                        scheduledTime
+                    } else {
+                        habit.scheduledTime
+                    }
+                    if (habitName.isNotBlank()) {
+                        onConfirm(habitName.trim(), time, duration, isImmutable)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = RoutInColors.VibrantGreenEmphasis,
+                    contentColor = RoutInColors.DeepPurpleNavy
+                ),
+                shape = RoundedCornerShape(12.dp),
+                enabled = habitName.isNotBlank()
+            ) {
+                Text("Guardar")
+            }
+        },
+        dismissButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // ── Delete Action ─────────────────────────────────────────────
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.semantics { contentDescription = "btn_delete_habit" }
+                ) {
+                    Text(
+                        text = "Eliminar",
+                        color = Color(0xFFE57373),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        "Cancelar",
+                        color = RoutInColors.SoftMutedLavender
+                    )
+                }
+            }
+        }
+    )
 }
 
 // ─── SPEC05: Add Habit Dialog ─────────────────────────────────────────────────
