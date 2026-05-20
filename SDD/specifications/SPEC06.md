@@ -43,10 +43,26 @@ Leverages design tokens specified in `UI_Guide_Context.md`:
 
 The interaction modifies the existing `HabitBlock` state. 
 
-**Mutation Contract:**
+**Mutation Contract** (enforced in `RoutInViewModel`):
+
+```kotlin
+// El agente debe implementar este toggle reactivo en RoutInViewModel.kt
+fun toggleHabitCompletion(habitId: Int) {
+    val updatedList = _habitBlocks.value.map { block ->
+        if (block.id == habitId) {
+            val nextStatus = if (block.status == "COMPLETED") "PENDING" else "COMPLETED"
+            block.copy(status = nextStatus)
+        } else {
+            block
+        }
+    }
+    _habitBlocks.value = updatedList
+}
+```
+
 1. The UI detects a tap event on the habit card container or the completion icon.
-2. The UI invokes an intent action (e.g., `viewModel.markHabitCompleted(id)`).
-3. The `ViewModel` atomically mutates the specific habit's `status` to `COMPLETED`.
+2. The UI invokes an intent action (e.g., `viewModel.toggleHabitCompletion(id)`).
+3. The `ViewModel` uses the toggle contract to atomically mutate the specific habit's `status` between `COMPLETED` and `PENDING`.
 4. The list is re-emitted, triggering the Compose redraw.
 
 **State Machine Specification (Reference `Architectural_Context.md §3.5`):**
