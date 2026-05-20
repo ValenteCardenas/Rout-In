@@ -38,7 +38,7 @@ object MockDataSeed {
     fun getInitialHabits(): MutableList<HabitBlock> = mutableListOf(
         HabitBlock(
             id = 101,
-            name = "Clase de Arquitectura",
+            name = "Clase de Arq. de Computadoras",
             scheduledTime = "14:00",
             durationMinutes = 120,
             status = HabitBlock.StatusConstants.COMPLETED,
@@ -47,8 +47,8 @@ object MockDataSeed {
         ),
         HabitBlock(
             id = 102,
-            name = "Reading Block",
-            scheduledTime = "16:00",
+            name = "Almuerzo",
+            scheduledTime = "14:00",
             durationMinutes = 60,
             status = HabitBlock.StatusConstants.PENDING,
             isImmutable = false,
@@ -56,9 +56,45 @@ object MockDataSeed {
         ),
         HabitBlock(
             id = 103,
-            name = "Gym / Workout",
+            name = "Estudio Cálculo",
+            scheduledTime = "15:00",
+            durationMinutes = 60,
+            status = HabitBlock.StatusConstants.PENDING,
+            isImmutable = false,
+            source = HabitBlock.Source.INTERNAL
+        ),
+        HabitBlock(
+            id = 104,
+            name = "Proyecto de Software",
+            scheduledTime = "16:00",
+            durationMinutes = 60,
+            status = HabitBlock.StatusConstants.PENDING,
+            isImmutable = false,
+            source = HabitBlock.Source.INTERNAL
+        ),
+        HabitBlock(
+            id = 108,
+            name = "Reading Block",
+            scheduledTime = "17:00",
+            durationMinutes = 60,
+            status = HabitBlock.StatusConstants.PENDING,
+            isImmutable = false,
+            source = HabitBlock.Source.INTERNAL
+        ),
+        HabitBlock(
+            id = 106,
+            name = "Gym / Ejercicio",
             scheduledTime = "18:00",
             durationMinutes = 90,
+            status = HabitBlock.StatusConstants.PENDING,
+            isImmutable = false,
+            source = HabitBlock.Source.INTERNAL
+        ),
+        HabitBlock(
+            id = 107,
+            name = "Cena",
+            scheduledTime = "19:30",
+            durationMinutes = 60,
             status = HabitBlock.StatusConstants.PENDING,
             isImmutable = false,
             source = HabitBlock.Source.INTERNAL

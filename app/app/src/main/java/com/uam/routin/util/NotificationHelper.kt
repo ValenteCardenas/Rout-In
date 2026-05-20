@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import com.uam.routin.data.model.NotificationConfig
 
 /**
  * Singleton helper that bootstraps the application's high-importance notification channel.
@@ -13,15 +14,14 @@ import android.os.Build
 object NotificationHelper {
 
     /** Canonical channel ID used across the entire application. Do NOT use any other string. */
-    const val CHANNEL_ID = "rout_in_behavioral_alerts"
+    const val CHANNEL_ID = NotificationConfig.CHANNEL_ID
 
-    private const val CHANNEL_NAME = "Behavioral Interventions"
-    private const val CHANNEL_DESC =
-        "Contextual suggestions and MCP schedule synchronization alerts."
+    private const val CHANNEL_NAME = NotificationConfig.CHANNEL_NAME
+    private const val CHANNEL_DESC = NotificationConfig.CHANNEL_DESC
 
     /** Notification IDs for each simulation scenario */
-    const val NOTIF_ID_FRICTION = 1001
-    const val NOTIF_ID_MCP = 1002
+    const val NOTIF_ID_FRICTION = NotificationConfig.NOTIFICATION_ID_FRICTION
+    const val NOTIF_ID_MCP = NotificationConfig.NOTIFICATION_ID_MCP
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

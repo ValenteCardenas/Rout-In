@@ -2,6 +2,8 @@ package com.uam.routin.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -10,8 +12,12 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,8 +35,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
@@ -43,11 +52,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -55,7 +72,9 @@ import androidx.compose.ui.unit.sp
 import com.uam.routin.data.model.HabitBlock
 import com.uam.routin.ui.theme.RoutInColors
 import com.uam.routin.viewmodel.RoutInViewModel
-import com.uam.routin.viewmodel.VoiceUiState
+import com.uam.routin.viewmodel.UiState
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
  * SPEC01–SPEC04 — MainDashboardScreen
@@ -65,18 +84,34 @@ import com.uam.routin.viewmodel.VoiceUiState
  *
  * The screen is fully declarative — all mutations are dispatched to [viewModel].
  * No business logic, coroutine calls, or hardware triggers live here.
+ *
+ * testId: screen_main_dashboard
  */
 @Composable
 fun MainDashboardScreen(viewModel: RoutInViewModel) {
 
     val habitBlocks by viewModel.habitBlocks
-    val voiceUiState by viewModel.voiceUiState
+    val uiState by viewModel.uiState
 
-    // FAB pulse animation active only during voice processing
+    val isVoiceActive = uiState == UiState.Listening || uiState == UiState.Loading || uiState == UiState.Speaking
+
+    // Track precise touch events natively without pointerInput swallow issues
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) {
+            viewModel.onMicPressStart()
+        } else {
+            viewModel.onMicRelease()
+        }
+    }
+
+    // FAB pulse scale — active only when voice is processing
     val infiniteTransition = rememberInfiniteTransition(label = "fab_pulse")
     val fabScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = if (voiceUiState == VoiceUiState.PROCESSING) 1.18f else 1f,
+        targetValue = if (isVoiceActive) 1.18f else 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(600),
             repeatMode = RepeatMode.Reverse
@@ -85,21 +120,23 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
     )
 
     Scaffold(
+        modifier = Modifier.semantics { contentDescription = "screen_main_dashboard" },
         containerColor = RoutInColors.DeepPurpleNavy,
         floatingActionButton = {
-            // ── Voice Simulation FAB (SPEC02) ─────────────────────────────────
+            // ── Microphone FAB (SPEC02) ──────────────────────────────────────────
             FloatingActionButton(
-                onClick = { viewModel.simulateVoiceCommand() },
+                onClick = { /* empty, gesture handled natively by interactionSource */ },
+                interactionSource = interactionSource,
                 modifier = Modifier
                     .size(64.dp)
                     .scale(fabScale)
-                    .semantics { contentDescription = "fab_voice" },
+                    .semantics { contentDescription = "fab_microphone" },
                 shape = CircleShape,
                 containerColor = RoutInColors.VibrantGreenEmphasis,
                 contentColor = RoutInColors.DeepPurpleNavy
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Mic,
+                    imageVector = if (isVoiceActive) Icons.Rounded.RecordVoiceOver else Icons.Rounded.Mic,
                     contentDescription = "Simular comando de voz",
                     modifier = Modifier.size(28.dp)
                 )
@@ -118,8 +155,20 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
             // ── Header ────────────────────────────────────────────────────────
             item {
                 Spacer(modifier = Modifier.height(24.dp))
-                DashboardHeader(voiceUiState = voiceUiState)
+                DashboardHeader(uiState = uiState)
                 Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // ── Wave Animation (SPEC02) — visible during all voice processing states ──
+            item {
+                AnimatedVisibility(
+                    visible = isVoiceActive,
+                    enter = fadeIn(animationSpec = tween(300)),
+                    exit = fadeOut(animationSpec = tween(400))
+                ) {
+                    WaveAnimationPanel(uiState = uiState)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
             }
 
             // ── Habit Block Cards ──────────────────────────────────────────────
@@ -147,7 +196,7 @@ fun MainDashboardScreen(viewModel: RoutInViewModel) {
 // ─── Dashboard Header ─────────────────────────────────────────────────────────
 
 @Composable
-private fun DashboardHeader(voiceUiState: VoiceUiState) {
+private fun DashboardHeader(uiState: UiState) {
     Column {
         Text(
             text = "Buenos días, Gabriel 👋",
@@ -156,41 +205,172 @@ private fun DashboardHeader(voiceUiState: VoiceUiState) {
             )
         )
         Spacer(modifier = Modifier.height(4.dp))
+        val subtitle = when (uiState) {
+            is UiState.Listening -> "🎙 Escuchando tu comando…"
+            is UiState.Loading -> "⏳ Procesando con IA…"
+            is UiState.Speaking -> "🔊 Respondiendo…"
+            is UiState.Success -> "✅ Agenda actualizada"
+            else -> "Tu agenda de hoy · ${java.time.LocalDate.now().let {
+                "${it.dayOfMonth}/${it.monthValue}/${it.year}"
+            }}"
+        }
+        val subtitleColor = when (uiState) {
+            is UiState.Listening, is UiState.Loading, is UiState.Speaking ->
+                RoutInColors.VibrantGreenEmphasis
+            is UiState.Success -> RoutInColors.VibrantGreenEmphasis
+            else -> RoutInColors.SoftMutedLavender
+        }
         Text(
-            text = if (voiceUiState == VoiceUiState.PROCESSING)
-                "🎙 Procesando tu comando…"
-            else
-                "Tu agenda de hoy · ${java.time.LocalDate.now().let {
-                    "${it.dayOfMonth}/${it.monthValue}/${it.year}"
-                }}",
+            text = subtitle,
             style = MaterialTheme.typography.bodyLarge.copy(
-                color = if (voiceUiState == VoiceUiState.PROCESSING)
-                    RoutInColors.VibrantGreenEmphasis
-                else
-                    RoutInColors.SoftMutedLavender,
+                color = subtitleColor,
                 fontSize = 14.sp
             )
         )
     }
 }
 
+// ─── Wave Animation Panel (SPEC02) ───────────────────────────────────────────
+
+/**
+ * Premium Compose Canvas wave animation component.
+ * Renders three overlapping sinusoidal wave layers with distinct frequencies,
+ * amplitudes, and color opacities to simulate an active audio capture stream.
+ * Active during [UiState.Listening] and [UiState.Loading] states.
+ *
+ * testId: anim_wave
+ */
+@Composable
+private fun WaveAnimationPanel(uiState: UiState) {
+    // Phase offset animated at different speeds for each wave layer
+    val phase = remember { Animatable(0f) }
+    LaunchedEffect(uiState) {
+        phase.animateTo(
+            targetValue = (2 * PI).toFloat() * 100,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
+        )
+    }
+
+    val waveColor1 = RoutInColors.VibrantGreenEmphasis.copy(alpha = 0.85f)
+    val waveColor2 = RoutInColors.SoftMutedLavender.copy(alpha = 0.45f)
+    val waveColor3 = RoutInColors.ClarityBlue.copy(alpha = 0.30f)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp)
+            .semantics { contentDescription = "anim_wave" }
+    ) {
+        Canvas(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            drawWaveLayer(
+                phaseOffset = phase.value,
+                amplitude = size.height * 0.28f,
+                frequency = 1.4f,
+                color = waveColor1,
+                strokeWidth = 3.5f
+            )
+            drawWaveLayer(
+                phaseOffset = phase.value * 0.75f,
+                amplitude = size.height * 0.20f,
+                frequency = 2.1f,
+                color = waveColor2,
+                strokeWidth = 2.5f
+            )
+            drawWaveLayer(
+                phaseOffset = phase.value * 1.3f,
+                amplitude = size.height * 0.14f,
+                frequency = 3.0f,
+                color = waveColor3,
+                strokeWidth = 2.0f
+            )
+        }
+        // Glowing label overlay
+        Text(
+            text = when (uiState) {
+                is UiState.Speaking -> "\"Tengo una junta con mi asesor de Proyecto de Investigación a las 5…\""
+                else -> "\"Tengo una junta con mi asesor de Proyecto de Investigación a las 5…\""
+            },
+            style = MaterialTheme.typography.labelSmall.copy(
+                color = RoutInColors.SoftMutedLavender.copy(alpha = 0.7f),
+                fontSize = 10.sp
+            ),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 4.dp, start = 8.dp, end = 8.dp),
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * Draws a single sinusoidal wave path across the full canvas width.
+ * Used by [WaveAnimationPanel] to create layered depth.
+ */
+private fun DrawScope.drawWaveLayer(
+    phaseOffset: Float,
+    amplitude: Float,
+    frequency: Float,
+    color: Color,
+    strokeWidth: Float
+) {
+    val width = size.width
+    val centerY = size.height / 2f
+    val path = Path()
+    val step = 4f
+    var x = 0f
+    path.moveTo(x, centerY + amplitude * sin(frequency * x / width * 2 * PI + phaseOffset).toFloat())
+    while (x <= width) {
+        val y = centerY + amplitude * sin(frequency * x / width * 2 * PI.toFloat() + phaseOffset).toFloat()
+        path.lineTo(x, y)
+        x += step
+    }
+    drawPath(path = path, color = color, style = Stroke(width = strokeWidth))
+}
+
 // ─── Habit Block Card ─────────────────────────────────────────────────────────
 
+/**
+ * Dynamic card that selects its visual variant based on [HabitBlock.status] and [HabitBlock.source].
+ * Variants: Standard · External-Immutable · Friction · Pending-Reallocation · Completed · Reallocated
+ *
+ * testId: card_habit_{block.id} (standard)
+ *         card_habit_friction_{block.id}
+ *         card_habit_external_{block.id}
+ *         card_habit_pending_{block.id}
+ */
 @Composable
 private fun HabitBlockCard(block: HabitBlock) {
 
-    // Determine background and text colors based on status and source
     val (cardBackground, textOnCard) = resolveCardColors(block)
+    val cardAlpha = if (block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION) 0.5f else 1f
+
     val animatedBackground by animateColorAsState(
         targetValue = cardBackground,
         animationSpec = tween(durationMillis = 500),
-        label = "card_bg_anim"
+        label = "card_bg_anim_${block.id}"
     )
+
+    // Dynamic semantic testId based on card variant (SPEC02–SPEC04 testing contract)
+    val semanticId = when {
+        block.status == HabitBlock.StatusConstants.FRICTION ->
+            "card_habit_friction_${block.id}"
+        block.source == HabitBlock.Source.EXTERNAL && block.isImmutable ->
+            "card_habit_external_${block.id}"
+        block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION ->
+            "card_habit_pending_${block.id}"
+        else -> "card_habit_${block.id}"
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = "habit_card_${block.id}" },
+            .alpha(cardAlpha)
+            .semantics { contentDescription = semanticId },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = animatedBackground),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -200,11 +380,11 @@ private fun HabitBlockCard(block: HabitBlock) {
             verticalAlignment = Alignment.CenterVertically
         ) {
 
-            // Status icon indicator
+            // Status icon indicator circle
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .background(resolveStatusAccent(block).copy(alpha = 0.2f), CircleShape),
+                    .background(resolveStatusAccent(block).copy(alpha = 0.18f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -246,7 +426,7 @@ private fun HabitBlockCard(block: HabitBlock) {
                 }
             }
 
-            // Status badge
+            // Trailing status badge
             StatusBadge(block = block, textColor = textOnCard)
         }
     }
@@ -258,8 +438,12 @@ private fun StatusBadge(block: HabitBlock, textColor: Color) {
         HabitBlock.StatusConstants.COMPLETED -> "✓ Listo"
         HabitBlock.StatusConstants.FRICTION -> "⚠ Fricción"
         HabitBlock.StatusConstants.REALLOCATED -> "↗ Reubicado"
-        HabitBlock.StatusConstants.PENDING_REALLOCATION -> "⏳ Pendiente"
-        else -> if (block.isImmutable && block.source == HabitBlock.Source.EXTERNAL) "📅 Externo" else ""
+        HabitBlock.StatusConstants.PENDING_REALLOCATION -> "🕐 Pendiente"
+        else -> when {
+            block.isImmutable && block.source == HabitBlock.Source.EXTERNAL -> "🔒 Externo"
+            block.isImmutable -> "📌 Fijo"
+            else -> ""
+        }
     }
     if (badgeLabel.isNotEmpty()) {
         Text(
@@ -272,7 +456,11 @@ private fun StatusBadge(block: HabitBlock, textColor: Color) {
     }
 }
 
-/** Returns (cardBackground, onCardTextColor) based on status and source. */
+/**
+ * Returns (cardBackground, onCardTextColor) based on status and source.
+ * When a pastel color is used as background, text automatically swaps to
+ * [RoutInColors.DeepPurpleNavy] per the design system contrast rule.
+ */
 private fun resolveCardColors(block: HabitBlock): Pair<Color, Color> {
     return when {
         block.source == HabitBlock.Source.EXTERNAL && block.isImmutable ->
@@ -284,7 +472,7 @@ private fun resolveCardColors(block: HabitBlock): Pair<Color, Color> {
         block.status == HabitBlock.StatusConstants.REALLOCATED ->
             RoutInColors.WellbeingMint to RoutInColors.DeepPurpleNavy
         block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION ->
-            RoutInColors.OptimismYellow to RoutInColors.DeepPurpleNavy
+            RoutInColors.DarkSurface to RoutInColors.SoftMutedLavender
         else -> RoutInColors.DarkSurface to RoutInColors.OffWhiteSerenity
     }
 }
@@ -293,16 +481,18 @@ private fun resolveStatusAccent(block: HabitBlock): Color = when (block.status) 
     HabitBlock.StatusConstants.COMPLETED -> RoutInColors.VibrantGreenEmphasis
     HabitBlock.StatusConstants.FRICTION -> Color(0xFFFFB347)
     HabitBlock.StatusConstants.REALLOCATED -> RoutInColors.VibrantGreenEmphasis
-    HabitBlock.StatusConstants.PENDING_REALLOCATION -> Color(0xFFFFB347)
+    HabitBlock.StatusConstants.PENDING_REALLOCATION -> Color(0xFFB0AACC)
     else -> if (block.source == HabitBlock.Source.EXTERNAL)
         RoutInColors.ClarityBlue else RoutInColors.SoftMutedLavender
 }
 
 @Composable
-private fun resolveStatusIcon(block: HabitBlock) = when (block.status) {
-    HabitBlock.StatusConstants.COMPLETED -> Icons.Rounded.Check
-    HabitBlock.StatusConstants.FRICTION,
-    HabitBlock.StatusConstants.PENDING_REALLOCATION -> Icons.Rounded.Warning
+private fun resolveStatusIcon(block: HabitBlock) = when {
+    block.status == HabitBlock.StatusConstants.COMPLETED -> Icons.Rounded.Check
+    block.status == HabitBlock.StatusConstants.FRICTION -> Icons.Rounded.Warning
+    block.status == HabitBlock.StatusConstants.PENDING_REALLOCATION -> Icons.Rounded.Schedule
+    block.source == HabitBlock.Source.EXTERNAL && block.isImmutable -> Icons.Rounded.Lock
+    block.isImmutable -> Icons.Rounded.CalendarToday
     else -> Icons.Rounded.Schedule
 }
 
@@ -312,13 +502,15 @@ private fun resolveStatusIcon(block: HabitBlock) = when (block.status) {
  * Accessible debug panel for the SIE 2026 presentation.
  * Exposes explicit simulation triggers for SPEC03 and SPEC04.
  * All calls are forwarded directly to the ViewModel — zero inline logic.
+ *
+ * testId: section_debug
  */
 @Composable
 private fun DebugDashboard(viewModel: RoutInViewModel) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics { contentDescription = "debug_dashboard" },
+            .semantics { contentDescription = "section_debug" },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = RoutInColors.DarkSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -344,10 +536,10 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // SPEC03 trigger
+            // SPEC03 trigger — btn_simulate_friction
             DebugButton(
                 label = "Simulate Critical Friction",
-                description = "Marca Reading Block como FRICTION y dispara notificación",
+                description = "Marca Reading Block (id=108) como FRICTION y dispara notificación",
                 containerColor = RoutInColors.OptimismYellow,
                 testId = "btn_simulate_friction",
                 onClick = { viewModel.simulateCriticalFriction() }
@@ -355,10 +547,10 @@ private fun DebugDashboard(viewModel: RoutInViewModel) {
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // SPEC04 trigger
+            // SPEC04 trigger — btn_simulate_mcp
             DebugButton(
                 label = "Simulate MCP Collision",
-                description = "Inyecta 'Sistemas Operativos Exam' y desplaza Gym",
+                description = "Inyecta 'Sistemas Operativos Exam' y desplaza Gym (id=106)",
                 containerColor = RoutInColors.ClarityBlue,
                 testId = "btn_simulate_mcp",
                 onClick = { viewModel.simulateMcpCollision() }
@@ -387,11 +579,9 @@ private fun DebugButton(
             contentColor = RoutInColors.DeepPurpleNavy
         )
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
-            )
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp)
+        )
     }
 }

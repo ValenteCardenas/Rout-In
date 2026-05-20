@@ -16,8 +16,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.uam.routin.data.model.DeploymentMode
+import com.uam.routin.data.model.ExternalEvent
 import com.uam.routin.data.model.HabitBlock
 import com.uam.routin.data.model.MockDataSeed
+import com.uam.routin.data.model.NotificationConfig
 import com.uam.routin.data.model.OnboardingState
 import com.uam.routin.receiver.NotificationActionReceiver
 import com.uam.routin.util.NotificationHelper
@@ -27,8 +29,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-/** Represents the voice interaction processing state for the FAB wave animation. */
-enum class VoiceUiState { IDLE, PROCESSING }
+// Refactored to use the unified sealed class UiState
 
 /**
  * Central In-Memory State Machine for the Rout-In MVP.
@@ -50,11 +51,13 @@ class RoutInViewModel(application: Application) :
     private val _onboardingState = mutableStateOf(OnboardingState())
     val onboardingState: State<OnboardingState> = _onboardingState
 
-    private val _habitBlocks = mutableStateOf<List<HabitBlock>>(MockDataSeed.getInitialHabits())
+    private val _habitBlocks = mutableStateOf<List<HabitBlock>>(
+        MockDataSeed.getInitialHabits().toMutableList().also { resolveCollisions(it) }
+    )
     val habitBlocks: State<List<HabitBlock>> = _habitBlocks
 
-    private val _voiceUiState = mutableStateOf(VoiceUiState.IDLE)
-    val voiceUiState: State<VoiceUiState> = _voiceUiState
+    private val _uiState = mutableStateOf<UiState>(UiState.Idle)
+    val uiState: State<UiState> = _uiState
 
     // ─── Native Hardware Engines ──────────────────────────────────────────────
 
@@ -73,7 +76,11 @@ class RoutInViewModel(application: Application) :
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = ttsEngine?.setLanguage(Locale.forLanguageTag("es-MX"))
+            var result = ttsEngine?.setLanguage(Locale.forLanguageTag("es-MX"))
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                // Fallback to device default locale if es-MX is not installed on this device/emulator
+                result = ttsEngine?.setLanguage(Locale.getDefault())
+            }
             isTtsInitialized = result != TextToSpeech.LANG_MISSING_DATA
                     && result != TextToSpeech.LANG_NOT_SUPPORTED
         }
@@ -112,82 +119,109 @@ class RoutInViewModel(application: Application) :
 
     // ─── SPEC02: Voice-Driven Schedule Modification ───────────────────────────
 
-    /**
-     * Simulates the full voice command flow:
-     * 1. Enters PROCESSING state (wave animation in UI)
-     * 2. Delays 1500ms to emulate cloud inference latency
-     * 3. Speaks empathetic TTS response
-     * 4. Injects "Junta de Proyecto de Investigación" at 17:00
-     * 5. Shifts Gym / Workout from 18:00 → 19:00
-     */
-    fun simulateVoiceCommand() {
+    /** Triggers when the user physically presses down the microphone. */
+    fun onMicPressStart() {
+        // Only start if we are in an idle or success state
+        if (_uiState.value != UiState.Idle && _uiState.value !is UiState.Success) return
+        _uiState.value = UiState.Listening
+    }
+
+    /** Triggers when the user releases the microphone. */
+    fun onMicRelease() {
+        // Guard to only process if we were actually listening
+        if (_uiState.value != UiState.Listening) return
+
+        _uiState.value = UiState.Loading
         viewModelScope.launch {
-            _voiceUiState.value = VoiceUiState.PROCESSING
-
-            withContext(Dispatchers.Default) { delay(1_500L) }
-
-            speakEmpatheticResponse(
-                "Entendido, Gabriel. He protegido tu espacio para la junta de Proyecto de " +
-                        "Investigación. Moviendo tus hábitos de la tarde para reducir tu estrés."
-            )
-
-            mutateHabitBlocks {
-                // Shift all internal non-immutable habits at or after 17:00 by 60 minutes
-                forEach { block ->
-                    if (!block.isImmutable
-                        && block.source == HabitBlock.Source.INTERNAL
-                        && block.scheduledTime >= "17:00"
-                    ) {
-                        block.scheduledTime = shiftTime(block.scheduledTime, 60)
-                    }
-                }
-                // Insert the new immutable meeting block at 17:00
-                add(
-                    HabitBlock(
-                        id = 201,
-                        name = "Junta de Proyecto de Investigación",
-                        scheduledTime = "17:00",
-                        durationMinutes = 60,
-                        status = HabitBlock.StatusConstants.PENDING,
-                        isImmutable = true,
-                        source = HabitBlock.Source.INTERNAL
-                    )
-                )
-                sortBy { it.scheduledTime }
+            // Simulate STT/NLP cloud inference latency after they finish speaking
+            withContext(Dispatchers.Default) {
+                delay(1500L)
             }
 
-            _voiceUiState.value = VoiceUiState.IDLE
+            // Speaking and list mutation
+            withContext(Dispatchers.Main) {
+                _uiState.value = UiState.Speaking
+                speakEmpatheticResponse(
+                    "Entendido, Gabriel. He protegido tu espacio para la junta de Proyecto de " +
+                            "Investigación. Moviendo tus hábitos de la tarde para reducir tu estrés."
+                )
+
+                mutateHabitBlocks {
+                    // Shift all non-immutable blocks scheduled at or after 17:00 forward by 60 minutes
+                    forEach { block ->
+                        if (block.scheduledTime >= "17:00" && !block.isImmutable) {
+                            block.scheduledTime = shiftTime(block.scheduledTime, 60)
+                        }
+                    }
+                    // Remove old meeting if it exists to allow re-running the demo seamlessly
+                    removeAll { it.id == 201 }
+                    // Insert new immutable meeting block at 17:00 (SPEC02 §6)
+                    add(
+                        HabitBlock(
+                            id = 201,
+                            name = "Junta de Proyecto de Investigación",
+                            scheduledTime = "17:00",
+                            durationMinutes = 60,
+                            status = HabitBlock.StatusConstants.PENDING,
+                            isImmutable = true,
+                            source = HabitBlock.Source.INTERNAL
+                        )
+                    )
+                    sortBy { it.scheduledTime }
+                }
+
+                // Keep speaking state visible for a bit to read the subtitle
+                delay(4000L)
+                _uiState.value = UiState.Success("Schedule updated.")
+                delay(3000L)
+                _uiState.value = UiState.Idle
+            }
         }
+    }
+
+    /** No-op fallback */
+    fun simulateVoiceCommand() {
+        // Handled automatically by interaction source now
     }
 
     // ─── SPEC03: Proactive Behavioral Suggestion (Critical Friction) ──────────
 
     /**
      * Simulates critical friction detection on the Reading Block:
-     * 1. Marks Reading Block as FRICTION
-     * 2. Triggers haptic wave pattern
-     * 3. Fires high-priority interactive push notification
+     * 1. Restores Reading Block to 17:00 PENDING (Precondition Reset per SPEC03 §9.9)
+     * 2. Marks Reading Block as FRICTION
+     * 3. Triggers haptic wave pattern
+     * 4. Fires high-priority interactive push notification
      */
     fun simulateCriticalFriction() {
         val context = getApplication<Application>()
 
-        // Step 1 — Mutate Reading Block status to FRICTION
+        // Step 1: Precondition Reset (Order-Independence per SPEC03 §9.9)
         mutateHabitBlocks {
-            find { it.id == 102 }?.status = HabitBlock.StatusConstants.FRICTION
+            find { it.id == 108 }?.apply {
+                scheduledTime = "17:00"
+                status = HabitBlock.StatusConstants.PENDING
+            }
+            sortBy { it.scheduledTime }
         }
 
-        // Step 2 — Trigger sensory-disruptive haptic vibration
+        // Step 2: Mutate Reading Block (id=108) status to FRICTION
+        mutateHabitBlocks {
+            find { it.id == 108 }?.status = HabitBlock.StatusConstants.FRICTION
+        }
+
+        // Step 3 — Trigger sensory-disruptive haptic vibration
         triggerSensoryVibration(context)
 
-        // Step 3 — Fire interactive push notification
+        // Step 4 — Fire interactive push notification
         dispatchFrictionNotification(context)
     }
 
-    /** Called by NotificationActionReceiver when "Move to 6:30 PM" is tapped. */
+    /** Called by NotificationActionReceiver when "Move 30 mins later" is tapped. */
     fun onNotificationMoveReadingTo1830() {
         mutateHabitBlocks {
-            find { it.id == 102 }?.apply {
-                scheduledTime = "18:30"
+            find { it.id == 108 }?.apply {
+                scheduledTime = shiftTime(scheduledTime, 30)
                 status = HabitBlock.StatusConstants.REALLOCATED
             }
             sortBy { it.scheduledTime }
@@ -198,39 +232,68 @@ class RoutInViewModel(application: Application) :
 
     /**
      * Simulates ingestion of a mock MCP calendar payload:
-     * 1. Injects "Sistemas Operativos Exam" at 18:00 (immutable, external)
-     * 2. Sets Gym / Workout to PENDING_REALLOCATION
-     * 3. Fires empathetic rescheduling notification
+     * 1. Restores Gym block to 18:00 PENDING and removes old exams (Precondition Reset per SPEC04 §9.9)
+     * 2. Executes the Calendar Priority Rule: Gym (id=106) -> PENDING_REALLOCATION
+     * 3. Injects "Sistemas Operativos Exam" at 18:00 (immutable, external)
+     * 4. Fires empathetic rescheduling notification
      */
     fun simulateMcpCollision() {
         val context = getApplication<Application>()
 
+        // Step 1: Precondition Reset (Order-Independence per SPEC04 §9.9)
         mutateHabitBlocks {
-            // Displace Gym / Workout — it collides with the exam
-            find { it.id == 103 }?.status = HabitBlock.StatusConstants.PENDING_REALLOCATION
-
-            // Inject the external immutable exam block
-            add(
-                HabitBlock(
-                    id = 301,
-                    name = "Sistemas Operativos Exam",
-                    scheduledTime = "18:00",
-                    durationMinutes = 120,
-                    status = HabitBlock.StatusConstants.PENDING,
-                    isImmutable = true,
-                    source = HabitBlock.Source.EXTERNAL
-                )
-            )
+            removeAll { it.name == "Sistemas Operativos Exam" || it.id == "mcp_evt_os_992".hashCode() }
+            find { it.id == 106 }?.apply {
+                scheduledTime = "18:00"
+                status = HabitBlock.StatusConstants.PENDING
+                isImmutable = false
+            }
             sortBy { it.scheduledTime }
+        }
+
+        // Step 2 & 3: Ingest external event and apply Priority Rule
+        val mockMcpEvent = ExternalEvent(
+            mcpEventId = "mcp_evt_os_992",
+            name = "Sistemas Operativos Exam",
+            scheduledTime = "18:00",
+            durationMinutes = 120,
+            isImmutable = true,
+            source = "Google Calendar"
+        )
+
+        mutateHabitBlocks {
+            applyCalendarPriorityRule(mockMcpEvent, this)
         }
 
         dispatchMcpCollisionNotification(context)
     }
 
+    private fun applyCalendarPriorityRule(event: ExternalEvent, habits: MutableList<HabitBlock>) {
+        // 1. Find any internal block colliding at event.scheduledTime
+        val displaced = habits.find {
+            it.scheduledTime == event.scheduledTime && !it.isImmutable
+        }
+        // 2. Displace the conflicting block
+        displaced?.let { it.status = HabitBlock.StatusConstants.PENDING_REALLOCATION }
+        // 3. Insert the external event as an immutable HabitBlock
+        habits.add(
+            HabitBlock(
+                id = event.mcpEventId.hashCode(),
+                name = event.name,
+                scheduledTime = event.scheduledTime,
+                durationMinutes = event.durationMinutes,
+                status = HabitBlock.StatusConstants.PENDING,
+                isImmutable = true,
+                source = HabitBlock.Source.EXTERNAL
+            )
+        )
+        habits.sortBy { it.scheduledTime }
+    }
+
     /** Called by NotificationActionReceiver when "Re-locate to 7:30 PM" is tapped. */
     fun onNotificationRelocateGymTo1930() {
         mutateHabitBlocks {
-            find { it.id == 103 }?.apply {
+            find { it.id == 106 }?.apply {
                 scheduledTime = "19:30"
                 status = HabitBlock.StatusConstants.PENDING
             }
@@ -241,12 +304,66 @@ class RoutInViewModel(application: Application) :
     // ─── Private Helpers ──────────────────────────────────────────────────────
 
     /**
+     * Resolves schedule collisions by cascading flexible blocks forward.
+     * Immutable blocks remain anchored.
+     */
+    private fun resolveCollisions(habits: MutableList<HabitBlock>) {
+        habits.sortBy { timeToMinutes(it.scheduledTime) }
+        var currentMinutes = 0
+
+        for (i in habits.indices) {
+            val block = habits[i]
+            if (block.isImmutable) {
+                currentMinutes = maxOf(currentMinutes, timeToMinutes(block.scheduledTime) + block.durationMinutes)
+            } else {
+                var proposedStart = maxOf(currentMinutes, timeToMinutes(block.scheduledTime))
+                var proposedEnd = proposedStart + block.durationMinutes
+
+                var conflict = true
+                while (conflict) {
+                    conflict = false
+                    for (j in i + 1 until habits.size) {
+                        val futureBlock = habits[j]
+                        if (futureBlock.isImmutable) {
+                            val futureStart = timeToMinutes(futureBlock.scheduledTime)
+                            val futureEnd = futureStart + futureBlock.durationMinutes
+                            if (proposedStart < futureEnd && proposedEnd > futureStart) {
+                                proposedStart = futureEnd
+                                proposedEnd = proposedStart + block.durationMinutes
+                                conflict = true
+                                break
+                            }
+                        }
+                    }
+                }
+
+                block.scheduledTime = minutesToTime(proposedStart)
+                currentMinutes = proposedEnd
+            }
+        }
+        habits.sortBy { timeToMinutes(it.scheduledTime) }
+    }
+
+    private fun timeToMinutes(time: String): Int {
+        val parts = time.split(":")
+        return parts[0].toInt() * 60 + parts[1].toInt()
+    }
+
+    private fun minutesToTime(minutes: Int): String {
+        val normalized = minutes % (24 * 60)
+        val h = normalized / 60
+        val m = normalized % 60
+        return "%02d:%02d".format(h, m)
+    }
+
+    /**
      * Thread-safe helper for mutating the habit list.
      * Always creates a new list reference to guarantee Compose recomposition.
      */
     private fun mutateHabitBlocks(transform: MutableList<HabitBlock>.() -> Unit) {
-        val mutable = _habitBlocks.value.toMutableList()
+        val mutable = _habitBlocks.value.map { it.copy() }.toMutableList()
         mutable.transform()
+        resolveCollisions(mutable)
         _habitBlocks.value = mutable
     }
 
@@ -264,8 +381,8 @@ class RoutInViewModel(application: Application) :
 
     /** Emits the irregular haptic burst pattern to penetrate notification blindness. */
     private fun triggerSensoryVibration(context: Context) {
-        val timings = longArrayOf(0, 250, 200, 250, 150, 400)
-        val amplitudes = intArrayOf(0, 255, 0, 180, 0, 255)
+        val timings = NotificationConfig.HAPTIC_PATTERN
+        val amplitudes = NotificationConfig.HAPTIC_AMPLITUDES
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -302,19 +419,19 @@ class RoutInViewModel(application: Application) :
             .setContentTitle("Rout-In · Intervención Proactiva")
             .setContentText(
                 "Hola. Notamos que este horario te ha costado trabajo. " +
-                        "¿Prefieres mover la lectura a hoy a las 6:30 PM?"
+                        "¿Prefieres mover la lectura 30 minutos más tarde?"
             )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
                     "Hola. Notamos que este horario te ha costado trabajo últimamente. " +
                             "No te preocupes, vamos a tu ritmo. ¿Prefieres mover la lectura " +
-                            "a hoy a las 6:30 PM o prefieres que lo intentemos el sábado por la mañana?"
+                            "30 minutos más tarde o prefieres que lo intentemos el sábado por la mañana?"
                 )
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .addAction(android.R.drawable.ic_menu_today, "Move to 6:30 PM", actionPendingIntent)
+            .addAction(android.R.drawable.ic_menu_today, "Posponer 30 min", actionPendingIntent)
             .build()
 
         NotificationManagerCompat.from(context).notify(NotificationHelper.NOTIF_ID_FRICTION, notification)

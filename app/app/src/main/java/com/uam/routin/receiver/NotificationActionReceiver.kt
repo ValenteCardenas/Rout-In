@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.uam.routin.util.NotificationHelper
+import com.uam.routin.data.model.NotificationConfig
 
 /**
  * BroadcastReceiver that intercepts one-tap interactive notification action buttons.
@@ -19,9 +20,9 @@ import com.uam.routin.util.NotificationHelper
 class NotificationActionReceiver : BroadcastReceiver() {
 
     companion object {
-        const val ACTION_MOVE_HABIT_630 = "com.uam.routin.ACTION_MOVE_HABIT_630"
-        const val ACTION_RELOCATE_HABIT_730 = "com.uam.routin.ACTION_RELOCATE_HABIT_730"
-        const val EXTRA_NOTIFICATION_ID = "EXTRA_NOTIFICATION_ID"
+        const val ACTION_MOVE_HABIT_630 = NotificationConfig.ACTION_MOVE_HABIT_630
+        const val ACTION_RELOCATE_HABIT_730 = NotificationConfig.ACTION_RELOCATE_730
+        const val EXTRA_NOTIFICATION_ID = NotificationConfig.EXTRA_NOTIFICATION_ID
 
         /**
          * Callback hooks registered by the ViewModel.
